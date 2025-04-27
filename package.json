@@ -1,0 +1,33 @@
+{
+  "name": "sankorollers",
+  "version": "1.0.0",
+  "description": "golf game",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack serve --open",
+    "build": "webpack --mode production",
+    "deploy": "gh-pages -d dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thuffy93/SankoRollers.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/thuffy93/SankoRollers/issues"
+  },
+  "homepage": "https://github.com/thuffy93/SankoRollers#readme",
+  "devDependencies": {
+    "@dimforge/rapier3d": "^0.16.0",
+    "@types/three": "^0.176.0",
+    "three": "^0.176.0",
+    "ts-loader": "^9.5.2",
+    "typescript": "^5.8.3",
+    "webpack": "^5.99.7",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.1"
+  }
+}
