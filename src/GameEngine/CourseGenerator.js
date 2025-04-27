@@ -76,7 +76,8 @@ class CourseGenerator {
     this.holePosition = null;
   }
   
-  // Generate terrain using Perlin noise
+  // Replace the entire generateTerrain method in CourseGenerator.js with this version:
+
   generateTerrain() {
     const size = 30;
     const resolution = 60; // higher = more detailed
@@ -120,28 +121,37 @@ class CourseGenerator {
     this.scene.add(terrain);
     this.courseElements.push(terrain);
     
+    // Create a simple floor plane first (this is the guaranteed collision surface)
+    const floorGeometry = new THREE.PlaneGeometry(size, size);
+    const floorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x222266,
+      transparent: true,
+      opacity: 0, // Make it invisible
+      side: THREE.DoubleSide
+    });
+    
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0; // Position at y=0
+    this.scene.add(floor);
+    this.courseElements.push(floor);
+    
     // Create physics for terrain
-    if (this.physics) {
-      // Create a flattened array of heights row by row
-      const numRows = resolution + 1;
-      const numCols = resolution + 1;
-      const terrainHeights = [];
+    if (this.physics && this.physics.initialized) {
+      console.log("Creating terrain physics");
       
-      for (let row = 0; row < numRows; row++) {
-        for (let col = 0; col < numCols; col++) {
-          const index = row * numCols + col;
-          terrainHeights.push(heights[index] || 0);
-        }
-      }
-      
-      // Create heightfield physics for terrain
-      this.physics.createStaticBody(terrain, {
-        shape: 'heightfield',
-        heights: terrainHeights,
-        nrows: numRows,
-        ncols: numCols,
-        scale: { x: size / numRows, y: 1, z: size / numCols }
+      // Create a simple physics plane for the ground
+      const groundBody = this.physics.createStaticBody(floor, {
+        shape: 'cuboid',
+        halfExtents: { x: size/2, y: 0.1, z: size/2 },
+        material: 'default'
       });
+      
+      // Log that the ground has been created
+      console.log("Ground physics created:", groundBody);
+      
+      // Optional: Add more specific collision shapes for the terrain features
+      // This is less critical since we have the guaranteed floor now
     }
     
     return terrain;

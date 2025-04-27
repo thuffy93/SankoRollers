@@ -80,7 +80,8 @@ const GameUI = ({ gameSettings }) => {
     const handleKeyDown = (event) => {
       if (!engine) return;
       
-      const shotState = engine.getShotState();
+      const shotState = gameEngine ? gameEngine.getShotState() : 'idle';
+
       
       switch (event.key) {
         case 'ArrowLeft':
@@ -175,7 +176,7 @@ const GameUI = ({ gameSettings }) => {
       setPowerMeterValue(value);
       
       // Continue animation if still in power state
-      const shotState = engine.getShotState();
+      const shotState = gameEngine ? gameEngine.getShotState() : 'idle';
       if (shotState === 'power') {
         powerMeterAnimationRef.current = requestAnimationFrame(animatePowerMeter);
       }

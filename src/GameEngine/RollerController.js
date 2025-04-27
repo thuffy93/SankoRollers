@@ -699,7 +699,38 @@ class RollerController {
     
     return distance < holeRadius && speed < speedThreshold;
   }
-  
+  // Add these methods to the RollerController class in src/GameEngine/RollerController.js
+
+  /**
+   * Get the current charge percentage (0-100)
+   * @returns {number} Charge percentage
+   */
+  getChargePercent() {
+    if (this.maxShotPower <= 0) return 0;
+    return (this.shotPower / this.maxShotPower) * 100;
+  }
+
+  /**
+   * Start charging the shot
+   * @returns {boolean} Whether charging started successfully
+   */
+  startCharging() {
+    if (this.isMoving) return false;
+    
+    // Set shot state
+    this.shotState = 'aiming';
+    this.shotPower = 0;
+    
+    // Show guide visuals
+    if (this.guideArrow) {
+      this.guideArrow.visible = true;
+      this.updateGuideArrow();
+    }
+    
+    console.log("Shot charging started");
+    return true;
+  }
+
   // Update physics and visuals
   update(deltaTime) {
     // Skip if not created yet

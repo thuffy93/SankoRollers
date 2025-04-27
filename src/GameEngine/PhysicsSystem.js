@@ -52,6 +52,40 @@ class PhysicsSystem {
     // Initialize Rapier
     this.init();
   }
+
+  // Initialize physics with explicit debug logging
+  initializePhysics() {
+    console.log("Initializing physics system");
+    this.physics = new PhysicsSystem();
+    
+    // Wait for physics initialization
+    return this.physics.waitForInit().then(() => {
+      console.log("Physics initialized successfully");
+      
+      // Create a simple ground plane for collision
+      const groundBody = RAPIER.RigidBodyDesc.fixed();
+      const groundRigidBody = this.physics.world.createRigidBody(groundBody);
+      
+      // Create a large box collider for the ground
+      const groundColliderDesc = RAPIER.ColliderDesc.cuboid(50, 0.5, 50);
+      groundColliderDesc.setTranslation(0, -0.5, 0);
+      
+      // Set physical properties
+      groundColliderDesc.setFriction(0.8);
+      groundColliderDesc.setRestitution(0.2);
+      
+      // Create the collider
+      const groundCollider = this.physics.world.createCollider(groundColliderDesc, groundRigidBody);
+      
+      console.log("Ground plane physics created");
+      
+      // Set up physics event handlers
+      this.setupPhysicsEvents();
+      
+      return this.physics;
+    });
+  }
+  
   
   /**
    * Initialize Rapier physics
@@ -60,6 +94,10 @@ class PhysicsSystem {
     try {
       // Load and initialize Rapier
       await RAPIER.init();
+
+      // Initialize physics
+      await this.initializePhysics();
+
       
       // Create physics world
       this.world = new RAPIER.World(this.gravity);
@@ -69,6 +107,7 @@ class PhysicsSystem {
       
       console.log('Rapier physics initialized');
       this.initialized = true;
+
       
     } catch (error) {
       console.error('Failed to initialize Rapier physics:', error);
@@ -108,7 +147,8 @@ class PhysicsSystem {
       z: gravity.z * multiplier
     };
     
-    this.world.setGravity({ x: this.gravity.x, y: this.gravity.y, z: this.gravity.z });
+    // FIXED: Rapier uses a gravity property rather than a setGravity method
+    this.world.gravity = { x: this.gravity.x, y: this.gravity.y, z: this.gravity.z };
   }
   
   /**
@@ -118,7 +158,9 @@ class PhysicsSystem {
     if (!this.initialized) return;
     
     this.gravity.y = -this.gravity.y;
-    this.world.setGravity({ x: this.gravity.x, y: this.gravity.y, z: this.gravity.z });
+    
+    // FIXED: Rapier uses a gravity property rather than a setGravity method
+    this.world.gravity = { x: this.gravity.x, y: this.gravity.y, z: this.gravity.z };
   }
   
   /**

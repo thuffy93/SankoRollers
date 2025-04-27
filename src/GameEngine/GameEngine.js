@@ -744,6 +744,15 @@ class GameEngine {
     return modifiers[index];
   }
   
+  // Get the current shot state from the roller controller
+  getShotState() {
+    if (!this.rollerController) return 'idle';
+    
+    // Get state from roller controller
+    const rollerState = this.rollerController.getState();
+    return rollerState.shotState;
+  }
+
   animate() {
     requestAnimationFrame(this.animate.bind(this));
     
