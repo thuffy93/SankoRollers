@@ -11,11 +11,22 @@ import RAPIER from '@dimforge/rapier3d-compat';
 
 // Initialize Rapier physics engine
 const initRapier = async () => {
-  await RAPIER.init();
-  console.log('Rapier physics initialized');
+    try {
+      await RAPIER.init();
+      console.log('Rapier physics initialized');
+      // Now we can mount the React app
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(
+        <React.StrictMode>
+          <App />
+        </React.StrictMode>
+      );
+    } catch (error) {
+      console.error('Failed to initialize Rapier:', error);
+    }
 };
-
-// Start initializing Rapier in background
+  
+// Start initializing Rapier
 initRapier();
 
 // Add global styles for font and reset

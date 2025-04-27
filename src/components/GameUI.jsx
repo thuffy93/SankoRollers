@@ -24,7 +24,10 @@ const GameUI = () => {
   useEffect(() => {
     // Initialize game when canvas is ready
     if (gameCanvas && !gameEngine) {
-      initializeGame();
+      const init = async () => {
+        await initializeGame();
+      };
+      init().catch(console.error);
     }
     
     // Cleanup on unmount
@@ -36,9 +39,12 @@ const GameUI = () => {
   }, [gameCanvas, gameEngine]);
   
   // Initialize the game engine
-  const initializeGame = () => {
+  const initializeGame = async () => {
     // Create new game engine instance
     const engine = new GameEngine(gameCanvas);
+    
+    // Wait for initialization to complete
+    await engine.init();
     
     // Set up event listeners
     engine.on('courseGenerated', handleCourseGenerated);

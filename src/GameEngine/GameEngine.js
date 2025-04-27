@@ -29,28 +29,28 @@ class GameEngine {
     
     // Game state
     this.gameState = {
-      currentHole: 1,
-      totalHoles: 9,
-      strokes: 0,
-      holeStrokes: 0,
-      courseSeed: Date.now(),
-      dailyModifier: null,
-      holeCompleted: false,
-      gameCompleted: false
+        currentHole: 1,
+        totalHoles: 9,
+        strokes: 0,
+        holeStrokes: 0,
+        courseSeed: Date.now(),
+        dailyModifier: null,
+        holeCompleted: false,
+        gameCompleted: false
     };
     
     // Input state
     this.inputState = {
-      isAiming: false,
-      aimDirection: new THREE.Vector3(0, 0, 1),
-      mousePosition: { x: 0, y: 0 }
+        isAiming: false,
+        aimDirection: new THREE.Vector3(0, 0, 1),
+        mousePosition: { x: 0, y: 0 }
     };
     
     // Event listeners
     this.eventListeners = {};
     
-    // Initialize the game engine
-    this.init();
+    // Do NOT call this.init() here
+    // It will be called explicitly by the component
   }
   
   // Initialize the game engine
@@ -106,10 +106,10 @@ class GameEngine {
     // Set up physics event handlers
     this.setupPhysicsEvents();
     
-    // Initialize course generator with physics
-    this.courseGenerator = new CourseGenerator(this.scene, this.physics);
+    // Initialize course generator
+    this.courseGenerator = new CourseGenerator(this.scene);
     
-    // Initialize roller controller with physics
+    // Initialize roller controller
     this.rollerController = new RollerController(this.scene, this.physics);
     
     // Set up visual style with Moebius shader
@@ -247,25 +247,6 @@ class GameEngine {
         this.moebiusShader = null;
       }
     }
-  } new CourseGenerator(this.scene);
-    
-    // Initialize roller controller
-    this.rollerController = new RollerController(this.scene);
-    
-    // Generate daily modifier using pseudorandom hash
-    this.gameState.dailyModifier = this.getDailyModifier();
-    
-    // Generate first course
-    this.generateCourse();
-    
-    // Set up event listeners
-    this.setupEventListeners();
-    
-    // Start animation loop
-    this.animate();
-    
-    // Handle window resize
-    window.addEventListener('resize', this.handleWindowResize.bind(this));
   }
   
   // Set up lighting
@@ -631,7 +612,7 @@ class GameEngine {
     const difficulty = Math.min(1 + (this.gameState.currentHole - 1) * 0.2, 5);
     
     // Apply physics modifiers based on daily modifier
-    if (this.physics && this.gameState.dailyModifier) {
+    if (this.physics && this.physics.initialized && this.gameState.dailyModifier) {
       switch (this.gameState.dailyModifier) {
         case 'zeroG':
           // Lower gravity for zero-G effect
@@ -763,13 +744,19 @@ class GameEngine {
     return modifiers[index];
   }
   
-  // Animation loop
   animate() {
     requestAnimationFrame(this.animate.bind(this));
+    
+    // Skip if not initialized
+    if (!this.scene || !this.camera || !this.renderer) return;
     
     // Get delta time
     const deltaTime = this.clock.getDelta();
     
+    // Update physics
+    if (this.physics) {
+      this.physics.update(deltaTime);
+    }    
     // Update course elements
     if (this.courseGenerator) {
       this.courseGenerator.update(deltaTime);
