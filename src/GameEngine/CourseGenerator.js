@@ -14,10 +14,23 @@ class CourseGenerator {
     this.holePosition = null;
   }
 
+  // Simple seeded random number generator
+  seededRandom(seed) {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
+
   // Generate a complete course
   generateCourse(seed = Date.now()) {
     // Use seed for deterministic generation
-    Math.seedrandom(seed);
+    const originalRandom = Math.random;
+    let currentSeed = seed;
+    
+    // Override Math.random with our seeded version
+    Math.random = () => {
+      currentSeed++;
+      return this.seededRandom(currentSeed);
+    };
     
     // Clear any existing course elements
     this.clearCourse();
