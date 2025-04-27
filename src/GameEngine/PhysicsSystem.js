@@ -1,5 +1,5 @@
 // src/GameEngine/PhysicsSystem.js
-import RAPIER from '@dimforge/rapier3d-compat';
+import * as RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 
 /**
@@ -12,6 +12,9 @@ class PhysicsSystem {
     this.initialized = false;
     this.rigidBodies = new Map(); // Map of THREE.Object3D to Rapier RigidBody
     this.colliders = new Map();   // Map of THREE.Object3D to Rapier Collider
+    
+    // Store our own user data since Rapier doesn't provide setUserData
+    this.colliderUserData = new Map(); // Map of Collider to userData object
     
     // Physics materials
     this.materials = {
@@ -127,33 +130,38 @@ class PhysicsSystem {
   createDynamicBody(object, options = {}) {
     if (!this.initialized || !object) return null;
     
-    // Get object position and rotation
-    const position = options.position || object.position;
-    const rotation = options.rotation || object.quaternion;
-    
-    // Create rigid body description
-    const rigidBodyDesc = new RAPIER.RigidBodyDesc.dynamic()
-      .setTranslation(position.x, position.y, position.z);
-    
-    if (rotation) {
-      rigidBodyDesc.setRotation({
-        x: rotation.x,
-        y: rotation.y,
-        z: rotation.z,
-        w: rotation.w
-      });
+    try {
+      // Get object position and rotation
+      const position = options.position || object.position;
+      const rotation = options.rotation || object.quaternion;
+      
+      // Create rigid body description
+      const rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(position.x, position.y, position.z);
+      
+      if (rotation) {
+        rigidBodyDesc.setRotation({
+          x: rotation.x,
+          y: rotation.y,
+          z: rotation.z,
+          w: rotation.w
+        });
+      }
+      
+      // Add rigid body to world
+      const rigidBody = this.world.createRigidBody(rigidBodyDesc);
+      
+      // Store reference to rigid body
+      this.rigidBodies.set(object, rigidBody);
+      
+      // Create collider based on object geometry
+      this.createCollider(object, rigidBody, options);
+      
+      return rigidBody;
+    } catch (error) {
+      console.error('Error creating dynamic body:', error);
+      return null;
     }
-    
-    // Add rigid body to world
-    const rigidBody = this.world.createRigidBody(rigidBodyDesc);
-    
-    // Store reference to rigid body
-    this.rigidBodies.set(object, rigidBody);
-    
-    // Create collider based on object geometry
-    this.createCollider(object, rigidBody, options);
-    
-    return rigidBody;
   }
   
   /**
@@ -165,37 +173,42 @@ class PhysicsSystem {
   createStaticBody(object, options = {}) {
     if (!this.initialized || !object) return null;
     
-    // Get object position and rotation
-    const position = options.position || object.position;
-    const rotation = options.rotation || object.quaternion;
-    
-    // Create rigid body description
-    const rigidBodyDesc = new RAPIER.RigidBodyDesc.fixed()
-      .setTranslation(position.x, position.y, position.z);
-    
-    if (rotation) {
-      rigidBodyDesc.setRotation({
-        x: rotation.x,
-        y: rotation.y,
-        z: rotation.z,
-        w: rotation.w
-      });
+    try {
+      // Get object position and rotation
+      const position = options.position || object.position;
+      const rotation = options.rotation || object.quaternion;
+      
+      // Create rigid body description
+      const rigidBodyDesc = RAPIER.RigidBodyDesc.fixed()
+        .setTranslation(position.x, position.y, position.z);
+      
+      if (rotation) {
+        rigidBodyDesc.setRotation({
+          x: rotation.x,
+          y: rotation.y,
+          z: rotation.z,
+          w: rotation.w
+        });
+      }
+      
+      // Add rigid body to world
+      const rigidBody = this.world.createRigidBody(rigidBodyDesc);
+      
+      // Store reference to rigid body
+      this.rigidBodies.set(object, rigidBody);
+      
+      // Create collider based on object geometry
+      this.createCollider(object, rigidBody, options);
+      
+      return rigidBody;
+    } catch (error) {
+      console.error('Error creating static body:', error);
+      return null;
     }
-    
-    // Add rigid body to world
-    const rigidBody = this.world.createRigidBody(rigidBodyDesc);
-    
-    // Store reference to rigid body
-    this.rigidBodies.set(object, rigidBody);
-    
-    // Create collider based on object geometry
-    this.createCollider(object, rigidBody, options);
-    
-    return rigidBody;
   }
   
   /**
-   * Create a kinematic rigid body for an object (can be moved but not affected by forces)
+   * Create a kinematic rigid body for an object
    * @param {THREE.Object3D} object - Three.js object
    * @param {Object} options - Physics options
    * @returns {RAPIER.RigidBody} Rapier rigid body
@@ -203,33 +216,38 @@ class PhysicsSystem {
   createKinematicBody(object, options = {}) {
     if (!this.initialized || !object) return null;
     
-    // Get object position and rotation
-    const position = options.position || object.position;
-    const rotation = options.rotation || object.quaternion;
-    
-    // Create rigid body description
-    const rigidBodyDesc = new RAPIER.RigidBodyDesc.kinematicPositionBased()
-      .setTranslation(position.x, position.y, position.z);
-    
-    if (rotation) {
-      rigidBodyDesc.setRotation({
-        x: rotation.x,
-        y: rotation.y,
-        z: rotation.z,
-        w: rotation.w
-      });
+    try {
+      // Get object position and rotation
+      const position = options.position || object.position;
+      const rotation = options.rotation || object.quaternion;
+      
+      // Create rigid body description
+      const rigidBodyDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
+        .setTranslation(position.x, position.y, position.z);
+      
+      if (rotation) {
+        rigidBodyDesc.setRotation({
+          x: rotation.x,
+          y: rotation.y,
+          z: rotation.z,
+          w: rotation.w
+        });
+      }
+      
+      // Add rigid body to world
+      const rigidBody = this.world.createRigidBody(rigidBodyDesc);
+      
+      // Store reference to rigid body
+      this.rigidBodies.set(object, rigidBody);
+      
+      // Create collider based on object geometry
+      this.createCollider(object, rigidBody, options);
+      
+      return rigidBody;
+    } catch (error) {
+      console.error('Error creating kinematic body:', error);
+      return null;
     }
-    
-    // Add rigid body to world
-    const rigidBody = this.world.createRigidBody(rigidBodyDesc);
-    
-    // Store reference to rigid body
-    this.rigidBodies.set(object, rigidBody);
-    
-    // Create collider based on object geometry
-    this.createCollider(object, rigidBody, options);
-    
-    return rigidBody;
   }
   
   /**
@@ -242,196 +260,98 @@ class PhysicsSystem {
   createCollider(object, rigidBody, options = {}) {
     if (!this.initialized || !object || !rigidBody) return null;
     
-    // Get material properties
-    const materialName = options.material || 'default';
-    const material = this.materials[materialName] || this.materials.default;
-    
-    // Create collider description based on object geometry
-    let colliderDesc;
-    
-    if (options.shape) {
-      // Use provided shape
-      switch (options.shape) {
-        case 'ball':
-          const radius = options.radius || 1;
+    try {
+      // Get material properties
+      const materialName = options.material || 'default';
+      const material = this.materials[materialName] || this.materials.default;
+      
+      // Create collider description based on object geometry
+      let colliderDesc;
+      
+      if (options.shape) {
+        // Use provided shape
+        switch (options.shape) {
+          case 'ball':
+            const radius = options.radius || 1;
+            colliderDesc = RAPIER.ColliderDesc.ball(radius);
+            break;
+            
+          case 'cuboid':
+            const halfExtents = options.halfExtents || { x: 1, y: 1, z: 1 };
+            colliderDesc = RAPIER.ColliderDesc.cuboid(
+              halfExtents.x, halfExtents.y, halfExtents.z
+            );
+            break;
+            
+          case 'cylinder':
+            const cylinderRadius = options.radius || 1;
+            const halfHeight = options.halfHeight || 1;
+            colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, cylinderRadius);
+            break;
+            
+          case 'capsule':
+            const capsuleRadius = options.radius || 0.5;
+            const capsuleHalfHeight = options.halfHeight || 1;
+            colliderDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius);
+            break;
+            
+          default:
+            console.warn(`Unknown shape: ${options.shape}, falling back to ball`);
+            colliderDesc = RAPIER.ColliderDesc.ball(1.0);
+            break;
+        }
+      } else if (object.geometry) {
+        // Infer shape from geometry
+        if (object.geometry.type === 'SphereGeometry') {
+          // Get radius from geometry
+          const radius = object.geometry.parameters.radius * Math.max(
+            object.scale.x, object.scale.y, object.scale.z
+          );
           colliderDesc = RAPIER.ColliderDesc.ball(radius);
-          break;
-          
-        case 'cuboid':
-          const halfExtents = options.halfExtents || { x: 1, y: 1, z: 1 };
-          colliderDesc = RAPIER.ColliderDesc.cuboid(halfExtents.x, halfExtents.y, halfExtents.z);
-          break;
-          
-        case 'cylinder':
-          const cylinderRadius = options.radius || 1;
-          const halfHeight = options.halfHeight || 1;
-          colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, cylinderRadius);
-          break;
-          
-        case 'capsule':
-          const capsuleRadius = options.radius || 0.5;
-          const capsuleHalfHeight = options.halfHeight || 1;
-          colliderDesc = RAPIER.ColliderDesc.capsule(capsuleHalfHeight, capsuleRadius);
-          break;
-          
-        case 'cone':
-          const coneRadius = options.radius || 1;
-          const coneHeight = options.height || 2;
-          colliderDesc = RAPIER.ColliderDesc.cone(coneHeight / 2, coneRadius);
-          break;
-          
-        case 'mesh':
-          // Create mesh collider from Three.js geometry
-          if (object.geometry) {
-            // Extract vertices and indices from geometry
-            const vertices = [];
-            const indices = [];
-            
-            // Get position attribute from geometry
-            const position = object.geometry.attributes.position;
-            const count = position.count;
-            
-            // Extract vertices
-            for (let i = 0; i < count; i++) {
-              vertices.push(position.getX(i), position.getY(i), position.getZ(i));
-            }
-            
-            // Extract indices if available
-            if (object.geometry.index) {
-              const index = object.geometry.index;
-              const indexCount = index.count;
-              
-              for (let i = 0; i < indexCount; i++) {
-                indices.push(index.getX(i));
-              }
-            } else {
-              // Generate indices for non-indexed geometry
-              for (let i = 0; i < count; i += 3) {
-                indices.push(i, i + 1, i + 2);
-              }
-            }
-            
-            // Create trimesh collider
-            colliderDesc = RAPIER.ColliderDesc.trimesh(
-              new Float32Array(vertices),
-              new Uint32Array(indices)
-            );
-          }
-          break;
-          
-        case 'heightfield':
-          // Create heightfield collider
-          if (options.heights && options.nrows && options.ncols) {
-            const scale = options.scale || { x: 1, y: 1, z: 1 };
-            colliderDesc = RAPIER.ColliderDesc.heightfield(
-              options.nrows,
-              options.ncols,
-              new Float32Array(options.heights),
-              scale
-            );
-          }
-          break;
-          
-        default:
-          console.warn(`Unknown shape: ${options.shape}`);
-          colliderDesc = RAPIER.ColliderDesc.ball(1);
-          break;
-      }
-    } else if (object.geometry) {
-      // Infer shape from geometry
-      if (object.geometry.type === 'SphereGeometry') {
-        // Get radius from geometry
-        const radius = object.geometry.parameters.radius * Math.max(
-          object.scale.x,
-          object.scale.y,
-          object.scale.z
-        );
-        colliderDesc = RAPIER.ColliderDesc.ball(radius);
-      } else if (object.geometry.type === 'BoxGeometry') {
-        // Get half extents from geometry
-        const parameters = object.geometry.parameters;
-        const halfExtents = {
-          x: parameters.width / 2 * object.scale.x,
-          y: parameters.height / 2 * object.scale.y,
-          z: parameters.depth / 2 * object.scale.z
-        };
-        colliderDesc = RAPIER.ColliderDesc.cuboid(halfExtents.x, halfExtents.y, halfExtents.z);
-      } else if (object.geometry.type === 'CylinderGeometry') {
-        // Get radius and half height from geometry
-        const parameters = object.geometry.parameters;
-        const radius = Math.max(parameters.radiusTop, parameters.radiusBottom) * 
-                      Math.max(object.scale.x, object.scale.z);
-        const halfHeight = parameters.height / 2 * object.scale.y;
-        colliderDesc = RAPIER.ColliderDesc.cylinder(halfHeight, radius);
-      } else if (object.geometry.type === 'PlaneGeometry') {
-        // Create thin cuboid for plane
-        const parameters = object.geometry.parameters;
-        const halfExtents = {
-          x: parameters.width / 2 * object.scale.x,
-          y: 0.01, // Very thin on Y axis
-          z: parameters.height / 2 * object.scale.z
-        };
-        colliderDesc = RAPIER.ColliderDesc.cuboid(halfExtents.x, halfExtents.y, halfExtents.z);
-      } else {
-        // Default to mesh collider for complex geometries
-        // Extract vertices and indices from geometry
-        const vertices = [];
-        const indices = [];
-        
-        // Get position attribute from geometry
-        const position = object.geometry.attributes.position;
-        const count = position.count;
-        
-        // Extract vertices
-        for (let i = 0; i < count; i++) {
-          vertices.push(position.getX(i), position.getY(i), position.getZ(i));
-        }
-        
-        // Extract indices if available
-        if (object.geometry.index) {
-          const index = object.geometry.index;
-          const indexCount = index.count;
-          
-          for (let i = 0; i < indexCount; i++) {
-            indices.push(index.getX(i));
-          }
+        } else if (object.geometry.type === 'BoxGeometry') {
+          // Get half extents from geometry
+          const parameters = object.geometry.parameters;
+          const halfExtents = {
+            x: parameters.width / 2 * object.scale.x,
+            y: parameters.height / 2 * object.scale.y,
+            z: parameters.depth / 2 * object.scale.z
+          };
+          colliderDesc = RAPIER.ColliderDesc.cuboid(
+            halfExtents.x, halfExtents.y, halfExtents.z
+          );
         } else {
-          // Generate indices for non-indexed geometry
-          for (let i = 0; i < count; i += 3) {
-            indices.push(i, i + 1, i + 2);
-          }
+          // Default to ball for other geometry types
+          console.warn(`Unsupported geometry type: ${object.geometry.type}, falling back to ball`);
+          colliderDesc = RAPIER.ColliderDesc.ball(0.5);
         }
-        
-        // Create trimesh collider
-        colliderDesc = RAPIER.ColliderDesc.trimesh(
-          new Float32Array(vertices),
-          new Uint32Array(indices)
-        );
+      } else {
+        // Default to ball collider if no geometry
+        colliderDesc = RAPIER.ColliderDesc.ball(0.5);
       }
-    } else {
-      // Default to ball collider if no geometry
-      colliderDesc = RAPIER.ColliderDesc.ball(1);
+      
+      // Set material properties
+      colliderDesc.setFriction(material.friction);
+      colliderDesc.setRestitution(material.restitution);
+      
+      // Set if this is a sensor (trigger)
+      if (options.isSensor) {
+        colliderDesc.setSensor(true);
+      }
+      
+      // Create collider
+      const collider = this.world.createCollider(colliderDesc, rigidBody);
+      
+      // Store reference to collider
+      this.colliders.set(object, collider);
+      
+      // Store object reference in our userdata map instead of using setUserData
+      this.colliderUserData.set(collider, { object });
+      
+      return collider;
+    } catch (error) {
+      console.error('Error creating collider:', error);
+      return null;
     }
-    
-    // Set material properties
-    colliderDesc.setFriction(material.friction);
-    colliderDesc.setRestitution(material.restitution);
-    
-    // Set if this is a sensor (trigger)
-    if (options.isSensor) {
-      colliderDesc.setSensor(true);
-    }
-    
-    // Create collider
-    const collider = this.world.createCollider(colliderDesc, rigidBody);
-    
-    // Store reference to collider
-    this.colliders.set(object, collider);
-    
-    // Set user data to reference the object
-    collider.setUserData({ object });
-    
-    return collider;
   }
   
   /**
@@ -448,6 +368,10 @@ class PhysicsSystem {
       // Remove colliders associated with this body
       const collider = this.colliders.get(object);
       if (collider) {
+        // Clean up our userdata map
+        this.colliderUserData.delete(collider);
+        
+        // Remove collider from world
         this.world.removeCollider(collider, true);
         this.colliders.delete(object);
       }
@@ -655,8 +579,9 @@ class PhysicsSystem {
       const collider1 = this.world.getCollider(handle1);
       const collider2 = this.world.getCollider(handle2);
       
-      const userData1 = collider1.getUserData();
-      const userData2 = collider2.getUserData();
+      // Get userData from our map instead of directly from collider
+      const userData1 = this.colliderUserData.get(collider1);
+      const userData2 = this.colliderUserData.get(collider2);
       
       const object1 = userData1 ? userData1.object : null;
       const object2 = userData2 ? userData2.object : null;
@@ -720,7 +645,7 @@ class PhysicsSystem {
     
     if (hit) {
       const collider = this.world.getCollider(hit.collider);
-      const userData = collider.getUserData();
+      const userData = this.colliderUserData.get(collider);
       const object = userData ? userData.object : null;
       
       return {
@@ -748,6 +673,7 @@ class PhysicsSystem {
     // Clear maps
     this.rigidBodies.clear();
     this.colliders.clear();
+    this.colliderUserData.clear();
     
     // Free world
     this.world.free();

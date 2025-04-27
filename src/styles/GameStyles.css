@@ -1,4 +1,4 @@
-/* src/styles/GameStyles.css */
+/* Enhanced src/styles/GameStyles.css with Kirby's Dream Course inspiration */
 
 /* Game container */
 .game-container {
@@ -53,11 +53,57 @@
     backdrop-filter: blur(5px);
   }
   
+  /* Energy tomatoes */
+  .energy-tomatoes {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .energy-tomato {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: #ff3333;
+    box-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+    position: relative;
+  }
+  
+  .energy-tomato::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 10px;
+    width: 8px;
+    height: 8px;
+    background-color: #00cc00;
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 255, 0, 0.6);
+  }
+  
+  .energy-tomato.active {
+    opacity: 1;
+    animation: pulse 2s infinite;
+  }
+  
+  .energy-tomato.inactive {
+    opacity: 0.3;
+    filter: grayscale(80%);
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
   /* Power-up indicator */
   .power-up-indicator {
     position: absolute;
     top: 70px;
-    left: 20px;
+    right: 80px;
     padding: 10px 15px;
     background-color: rgba(0, 255, 255, 0.3);
     color: #fff;
@@ -67,31 +113,6 @@
     gap: 10px;
     animation: fadeInOut 3s forwards;
     backdrop-filter: blur(5px);
-  }
-  
-  /* Visual style toggle button */
-  .visual-style-toggle {
-    position: absolute;
-    top: 70px;
-    right: 20px;
-    padding: 8px 15px;
-    background: linear-gradient(45deg, #00c3ff, #00ff9f);
-    color: #001a33;
-    border: none;
-    border-radius: 5px;
-    font-family: 'Orbitron', sans-serif;
-    font-size: 14px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    z-index: 10;
-    pointer-events: all;
-    box-shadow: 0 0 10px rgba(0, 255, 159, 0.5);
-  }
-  
-  .visual-style-toggle:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
   }
   
   .power-up-icon {
@@ -109,15 +130,308 @@
     100% { opacity: 0; }
   }
   
-  /* Game instructions */
-  .game-instructions {
+  /* Visual style toggle button */
+  .visual-style-toggle {
     position: absolute;
-    bottom: 20px;
+    top: 20px;
+    right: 20px;
+    padding: 8px 15px;
+    background: linear-gradient(45deg, #00c3ff, #00ff9f);
+    color: #001a33;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .modal-content button:hover {
+    background-color: #00ff9f;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  /* Animations */
+  @keyframes scaleIn {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  
+  /* Direction Arrow */
+  .direction-arrow {
+    position: absolute;
+    width: 0;
+    height: 0;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-bottom: 30px solid rgba(255, 255, 255, 0.8);
+    transform-origin: 50% 25%;
+    animation: pulse-arrow 1.5s infinite;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.7));
+  }
+  
+  @keyframes pulse-arrow {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Guide Line */
+  .guide-line {
+    position: absolute;
+    height: 2px;
+    background: repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.8) 0px,
+      rgba(255, 255, 255, 0.8) 6px,
+      transparent 6px,
+      transparent 12px
+    );
+    transform-origin: 0% 50%;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+  }
+  
+  /* Shot State Transitions */
+  .fade-enter {
+    opacity: 0;
+  }
+  
+  .fade-enter-active {
+    opacity: 1;
+    transition: opacity 200ms;
+  }
+  
+  .fade-exit {
+    opacity: 1;
+  }
+  
+  .fade-exit-active {
+    opacity: 0;
+    transition: opacity 200ms;
+  }
+  
+  /* Bounce animation for in-flight bounce */
+  @keyframes bounce {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+    100% { transform: translateY(0); }
+  }
+  
+  /* Spin indicator */
+  .spin-indicator {
+    position: absolute;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.6);
+    opacity: 0.7;
+    transition: all 0.3s ease;
+  }
+  
+  .spin-indicator::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 10px;
+    height: 10px;
+    background-color: #ffffff;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  }
+  
+  .spin-arrow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 2px;
+    background-color: #ffffff;
+    transform-origin: 0 50%;
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.8);
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .game-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      padding: 5px 10px;
+    }
+    
+    .energy-tomatoes {
+      top: 120px;
+    }
+    
+    .shot-state-indicator {
+      font-size: 14px;
+    }
+    
+    .shot-panel,
+    .power-meter-container {
+      width: 250px;
+    }
+    
+    .hole-completed-overlay {
+      padding: 20px;
+      width: 80%;
+    }
+    
+    .hole-completed-overlay h3 {
+      font-size: 20px;
+    }
+    
+    .hole-completed-overlay p {
+      font-size: 16px;
+    }
+    
+    .hole-completed-overlay button {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+    
+    .modal-content {
+      padding: 30px;
+      width: 80%;
+    }
+    
+    .modal-content h2 {
+      font-size: 24px;
+    }
+    
+    .modal-content p {
+      font-size: 16px;
+    }
+    
+    .modal-content button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    
+    .visual-style-toggle {
+      transition: all 0.2s ease;
+      z-index: 10;
+      pointer-events: all; 
+      box-shadow: 0 0 10px rgba(0, 255, 159, 0.5);
+    }
+  
+  .visual-style-toggle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  /* Shot Panel */
+  .shot-panel {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 20, 40, 0.8);
+    backdrop-filter: blur(8px);
+    border: 2px solid rgba(0, 195, 255, 0.5);
+    border-radius: 10px;
+    padding: 15px;
+    width: 300px;
+    box-shadow: 0 0 20px rgba(0, 195, 255, 0.3);
+    pointer-events: all;
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .guide-options {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  
+  .guide-option {
+    padding: 8px 15px;
+    border-radius: 5px;
+    text-align: center;
+    color: #ffffff;
+    background-color: rgba(0, 60, 100, 0.6);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex: 1;
+    margin: 0 5px;
+  }
+  
+  .guide-option.selected {
+    background-color: rgba(0, 195, 255, 0.6);
+    box-shadow: 0 0 10px rgba(0, 195, 255, 0.5);
+  }
+  
+  .guide-option:hover {
+    background-color: rgba(0, 150, 200, 0.6);
+  }
+  
+  .shot-panel-hint {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+    margin-top: 10px;
+  }
+  
+  @keyframes slideUp {
+    0% { transform: translate(-50%, 20px); opacity: 0; }
+    100% { transform: translate(-50%, 0); opacity: 1; }
+  }
+  
+  /* Power meter */
+  .power-meter-container {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 30px;
+    background-color: rgba(0, 20, 40, 0.8);
+    border: 2px solid rgba(0, 195, 255, 0.5);
+    border-radius: 15px;
+    overflow: hidden;
+    display: none;
+    box-shadow: 0 0 15px rgba(0, 195, 255, 0.3);
+  }
+  
+  .power-meter {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00c3ff, #00ff9f, #ffff00, #ff3300);
+    transition: width 0.05s linear;
+    box-shadow: 0 0 10px rgba(0, 255, 159, 0.7);
+  }
+  
+  .power-meter-container.active {
+    display: block;
+    animation: scaleIn 0.2s ease-out;
+  }
+  
+  .power-meter-hint {
+    position: absolute;
+    bottom: -25px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    color: #ffffff;
+    font-size: 12px;
+    text-shadow: 0 0 5px rgba(0, 0, 0, 0.7);
+  }
+  
+  /* Shot state indicator */
+  .shot-state-indicator {
+    position: absolute;
+    bottom: 30px;
     left: 0;
     width: 100%;
     text-align: center;
     color: #fff;
-    font-size: 14px;
+    font-size: 16px;
     padding: 10px;
     background-color: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(5px);
@@ -229,93 +543,6 @@
     font-size: 18px;
     font-weight: bold;
     cursor: pointer;
-    transition: all 0.2s ease;
-    margin-top: 10px;
+    transition: all 0.3s ease;
   }
-  
-  .modal-content button:hover {
-    background-color: #00ff9f;
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
-  }
-  
-  /* Power meter */
-  .power-meter-container {
-    position: absolute;
-    bottom: 60px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 300px;
-    height: 20px;
-    background-color: rgba(0, 0, 0, 0.5);
-    border-radius: 10px;
-    overflow: hidden;
-    display: none;
-  }
-  
-  .power-meter {
-    height: 100%;
-    width: 0%;
-    background: linear-gradient(90deg, #00c3ff, #00ff9f);
-    transition: width 0.1s ease;
-    box-shadow: 0 0 10px rgba(0, 255, 159, 0.7);
-  }
-  
-  .power-meter-container.active {
-    display: block;
-  }
-  
-  /* Animations */
-  @keyframes scaleIn {
-    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
-    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-  }
-  
-  /* Responsive adjustments */
-  @media (max-width: 768px) {
-    .game-header {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 5px;
-      padding: 5px 10px;
-    }
-    
-    .game-instructions {
-      font-size: 12px;
-    }
-    
-    .hole-completed-overlay {
-      padding: 20px;
-    }
-    
-    .hole-completed-overlay h3 {
-      font-size: 20px;
-    }
-    
-    .hole-completed-overlay p {
-      font-size: 16px;
-    }
-    
-    .hole-completed-overlay button {
-      padding: 8px 16px;
-      font-size: 14px;
-    }
-    
-    .modal-content {
-      padding: 30px;
-      max-width: 300px;
-    }
-    
-    .modal-content h2 {
-      font-size: 24px;
-    }
-    
-    .modal-content p {
-      font-size: 16px;
-    }
-    
-    .modal-content button {
-      padding: 10px 20px;
-      font-size: 16px;
-    }
-  }
+}
