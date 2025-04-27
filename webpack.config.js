@@ -43,5 +43,7 @@ module.exports = {
     },
     compress: true,
     port: 8080,
+    hot: true,
   },
+  devtool: 'source-map', // Add source maps for better debugging
 };

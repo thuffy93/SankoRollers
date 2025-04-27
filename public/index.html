@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cosmic Rollers - A Physics-driven Golf Game</title>
+  <meta name="description" content="A physics-driven, arcade-style golf game with blockchain integration">
+  <!-- Google Fonts - Orbitron -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+    
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Orbitron', sans-serif;
+      background-color: #000;
+    }
+    
+    #root {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Loading screen */
+    .loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #001a33, #003366);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      color: #00ff9f;
+      text-align: center;
+      transition: opacity 0.5s ease;
+    }
+
+    .loading-title {
+      font-size: 36px;
+      margin-bottom: 24px;
+      text-shadow: 0 0 20px rgba(0, 255, 159, 0.7);
+    }
+
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 5px solid rgba(0, 255, 159, 0.3);
+      border-radius: 50%;
+      border-top-color: #00ff9f;
+      animation: spin 1s ease-in-out infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading screen -->
+  <div class="loading-screen" id="loading-screen">
+    <h1 class="loading-title">Cosmic Rollers</h1>
+    <div class="loading-spinner"></div>
+    <p>Loading physics engine...</p>
+  </div>
+
+  <!-- Root element for React -->
+  <div id="root"></div>
+
+  <!-- Include the bundled script explicitly -->
+  <script src="/bundle.js"></script>
+
+  <script>
+    // Hide loading screen when app is ready
+    window.addEventListener('load', function() {
+      // Keep loading screen visible for at least 1.5 seconds for better UX
+      setTimeout(function() {
+        const loadingScreen = document.getElementById('loading-screen');
+        loadingScreen.style.opacity = '0';
+        setTimeout(function() {
+          loadingScreen.style.display = 'none';
+        }, 500);
+      }, 1500);
+    });
+  </script>
+</body>
+</html>
