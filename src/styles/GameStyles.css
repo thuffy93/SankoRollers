@@ -1,0 +1,321 @@
+/* src/styles/GameStyles.css */
+
+/* Game container */
+.game-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    overflow: hidden;
+    font-family: 'Orbitron', sans-serif;
+  }
+  
+  /* Game canvas */
+  .game-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+  }
+  
+  /* Game UI */
+  .game-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+  
+  /* Header bar */
+  .game-header {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 10px 20px;
+    display: flex;
+    justify-content: space-between;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #fff;
+    font-size: 16px;
+  }
+  
+  .hole-info,
+  .stroke-counter,
+  .daily-modifier {
+    padding: 5px 10px;
+    background-color: rgba(0, 40, 80, 0.5);
+    border-radius: 5px;
+    backdrop-filter: blur(5px);
+  }
+  
+  /* Power-up indicator */
+  .power-up-indicator {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    padding: 10px 15px;
+    background-color: rgba(0, 255, 255, 0.3);
+    color: #fff;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: fadeInOut 3s forwards;
+    backdrop-filter: blur(5px);
+  }
+  
+  /* Visual style toggle button */
+  .visual-style-toggle {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    padding: 8px 15px;
+    background: linear-gradient(45deg, #00c3ff, #00ff9f);
+    color: #001a33;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    z-index: 10;
+    pointer-events: all;
+    box-shadow: 0 0 10px rgba(0, 255, 159, 0.5);
+  }
+  
+  .visual-style-toggle:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  .power-up-icon {
+    width: 20px;
+    height: 20px;
+    background-color: #00ff9f;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #00ff9f;
+  }
+  
+  @keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(-10px); }
+    10% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  
+  /* Game instructions */
+  .game-instructions {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    color: #fff;
+    font-size: 14px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(5px);
+  }
+  
+  /* Hole completed overlay */
+  .hole-completed-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 30px;
+    background-color: rgba(0, 40, 80, 0.8);
+    color: #fff;
+    border-radius: 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    pointer-events: all;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+  
+  .hole-completed-overlay h3 {
+    margin: 0;
+    font-size: 24px;
+    color: #00ff9f;
+    text-shadow: 0 0 10px rgba(0, 255, 159, 0.5);
+  }
+  
+  .hole-completed-overlay p {
+    margin: 0;
+    font-size: 18px;
+  }
+  
+  .hole-completed-overlay button {
+    padding: 10px 20px;
+    background-color: #00c3ff;
+    color: #001a33;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .hole-completed-overlay button:hover {
+    background-color: #00ff9f;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  /* Game completed modal */
+  .game-completed-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 10, 30, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    pointer-events: all;
+    backdrop-filter: blur(5px);
+  }
+  
+  .modal-content {
+    padding: 40px;
+    background: linear-gradient(135deg, rgba(0, 20, 50, 0.9), rgba(0, 40, 80, 0.9));
+    color: #fff;
+    border-radius: 15px;
+    text-align: center;
+    max-width: 500px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 0 30px rgba(0, 195, 255, 0.5);
+    animation: scaleIn 0.5s ease-out forwards;
+  }
+  
+  .modal-content h2 {
+    margin: 0;
+    font-size: 32px;
+    color: #00ff9f;
+    text-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  .modal-content p {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.5;
+  }
+  
+  .modal-content button {
+    padding: 12px 24px;
+    background-color: #00c3ff;
+    color: #001a33;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 10px;
+  }
+  
+  .modal-content button:hover {
+    background-color: #00ff9f;
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.7);
+  }
+  
+  /* Power meter */
+  .power-meter-container {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 10px;
+    overflow: hidden;
+    display: none;
+  }
+  
+  .power-meter {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00c3ff, #00ff9f);
+    transition: width 0.1s ease;
+    box-shadow: 0 0 10px rgba(0, 255, 159, 0.7);
+  }
+  
+  .power-meter-container.active {
+    display: block;
+  }
+  
+  /* Animations */
+  @keyframes scaleIn {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+    100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 768px) {
+    .game-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+      padding: 5px 10px;
+    }
+    
+    .game-instructions {
+      font-size: 12px;
+    }
+    
+    .hole-completed-overlay {
+      padding: 20px;
+    }
+    
+    .hole-completed-overlay h3 {
+      font-size: 20px;
+    }
+    
+    .hole-completed-overlay p {
+      font-size: 16px;
+    }
+    
+    .hole-completed-overlay button {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+    
+    .modal-content {
+      padding: 30px;
+      max-width: 300px;
+    }
+    
+    .modal-content h2 {
+      font-size: 24px;
+    }
+    
+    .modal-content p {
+      font-size: 16px;
+    }
+    
+    .modal-content button {
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+  }

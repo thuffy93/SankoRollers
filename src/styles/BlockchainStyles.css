@@ -1,0 +1,214 @@
+/* src/styles/BlockchainStyles.css */
+
+/* Wallet Connector */
+.wallet-connector {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 100;
+    font-family: 'Orbitron', sans-serif;
+  }
+  
+  .connect-wallet-button {
+    padding: 8px 16px;
+    background: linear-gradient(45deg, #00c3ff, #00ff9f);
+    color: #001a33;
+    border: none;
+    border-radius: 5px;
+    font-family: 'Orbitron', sans-serif;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 0 10px rgba(0, 255, 159, 0.3);
+  }
+  
+  .connect-wallet-button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(0, 255, 159, 0.5);
+  }
+  
+  .connect-wallet-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .wallet-info {
+    background: rgba(0, 26, 51, 0.8);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(0, 255, 159, 0.3);
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 200px;
+  }
+  
+  .address-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .address {
+    color: #fff;
+    font-size: 14px;
+    font-family: monospace;
+    background: rgba(0, 40, 80, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  
+  .disconnect-button {
+    background: none;
+    border: none;
+    color: #ff3366;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 6px;
+    transition: all 0.2s ease;
+  }
+  
+  .disconnect-button:hover {
+    color: #ff6699;
+    text-decoration: underline;
+  }
+  
+  .token-balances {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .dmt-balance, .gold-balance {
+    color: #fff;
+    font-size: 14px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: inline-block;
+  }
+  
+  .dmt-balance {
+    background: rgba(0, 195, 255, 0.3);
+  }
+  
+  .gold-balance {
+    background: rgba(255, 215, 0, 0.3);
+  }
+  
+  .wallet-error {
+    margin-top: 5px;
+    padding: 5px 10px;
+    background-color: rgba(255, 51, 102, 0.3);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    text-align: center;
+  }
+  
+  /* Arcade Mode */
+  .arcade-mode-container {
+    width: 100%;
+    height: 100vh;
+    background: linear-gradient(135deg, #001a33, #003366);
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .arcade-lobby {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+  }
+  
+  .arcade-header {
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  
+  .arcade-header h1 {
+    color: #00ff9f;
+    font-size: 36px;
+    text-shadow: 0 0 20px rgba(0, 255, 159, 0.5);
+    margin: 0;
+  }
+  
+  .arcade-content {
+    display: flex;
+    gap: 30px;
+    height: calc(100% - 80px);
+  }
+  
+  .arcade-entry-form,
+  .arcade-leaderboard {
+    flex: 1;
+    background: rgba(0, 26, 51, 0.8);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 0 30px rgba(0, 60, 120, 0.3);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(0, 255, 159, 0.3);
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    overflow: auto;
+  }
+  
+  .arcade-entry-form h2,
+  .arcade-leaderboard h2 {
+    margin: 0 0 20px 0;
+    color: #00c3ff;
+    font-size: 24px;
+    text-align: center;
+    position: relative;
+    padding-bottom: 10px;
+  }
+  
+  .arcade-entry-form h2::after,
+  .arcade-leaderboard h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 25%;
+    width: 50%;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(0, 195, 255, 0), rgba(0, 195, 255, 1), rgba(0, 195, 255, 0));
+  }
+  
+  .entry-description {
+    margin-bottom: 20px;
+  }
+  
+  .entry-description p {
+    font-size: 16px;
+    line-height: 1.5;
+    opacity: 0.9;
+  }
+  
+  .token-selection {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .form-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .form-group label {
+    font-size: 14px;
+    opacity: 0.8;
+  }
+  
+  .form-group select {
+    padding: 8px 12px;
+    background-color: rgba(0, 40, 80, 0.8);
+    color: #fff;
+    border: 2px solid rgba(0, 195, 255, 0.5);
