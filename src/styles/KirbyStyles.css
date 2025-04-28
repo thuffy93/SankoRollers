@@ -1,0 +1,499 @@
+/* src/styles/KirbyStyles.css - Inspired by Kirby's Dream Course UI */
+
+/* Kirby-style UI container */
+.kirby-style {
+    font-family: 'Orbitron', 'Arial Rounded MT Bold', sans-serif;
+    --kirby-pink: #ff9ec6;
+    --kirby-pink-dark: #ff4d94;
+    --kirby-blue: #88c9ff;
+    --kirby-blue-dark: #3399ff;
+    --kirby-green: #92d36e;
+    --kirby-yellow: #ffd966;
+    --kirby-red: #ff6666;
+  }
+  
+  /* Header bar */
+  .game-header {
+    background: linear-gradient(to bottom, rgba(255, 158, 198, 0.9), rgba(136, 201, 255, 0.8));
+    border-bottom: 3px solid white;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    padding: 8px 15px;
+    font-weight: bold;
+    color: #333;
+  }
+  
+  .kirby-style .hole-info,
+  .kirby-style .stroke-counter,
+  .kirby-style .daily-modifier {
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 15px;
+    padding: 5px 12px;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* Energy tomatoes (in Kirby's Dream Course these are the stock/lives) */
+  .energy-tomatoes {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .energy-tomato {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    position: relative;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.4);
+  }
+  
+  .energy-tomato.active {
+    background-color: var(--kirby-pink);
+    border: 2px solid white;
+    animation: pulse 2s infinite;
+  }
+  
+  .energy-tomato.inactive {
+    background-color: rgba(150, 150, 150, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.5);
+    opacity: 0.6;
+  }
+  
+  .energy-tomato::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 8px;
+    height: 8px;
+    background-color: var(--kirby-green);
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(0, 255, 0, 0.6);
+  }
+  
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  /* Kirby-style buttons */
+  .kirby-button {
+    background: linear-gradient(to bottom, var(--kirby-pink), var(--kirby-pink-dark));
+    color: white;
+    font-weight: bold;
+    padding: 8px 16px;
+    border: 3px solid white;
+    border-radius: 30px;
+    box-shadow: 0 4px 0 rgba(0, 0, 0, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: relative;
+    transform: translateY(-2px);
+    transition: all 0.1s ease;
+  }
+  
+  .kirby-button:hover {
+    background: linear-gradient(to bottom, var(--kirby-pink-dark), var(--kirby-pink));
+    transform: translateY(0);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.3);
+  }
+  
+  .kirby-button:active {
+    transform: translateY(2px);
+    box-shadow: none;
+  }
+  
+  /* Power meter (oscillating like in Kirby's Dream Course) */
+  .power-meter-container.kirby-style {
+    position: absolute;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    border: 3px solid var(--kirby-blue-dark);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    text-align: center;
+    color: #333;
+    font-weight: bold;
+  }
+  
+  .power-meter-label {
+    margin-bottom: 5px;
+    font-size: 18px;
+    text-transform: uppercase;
+    color: var(--kirby-blue-dark);
+  }
+  
+  .power-meter-background {
+    height: 30px;
+    background: linear-gradient(to right, #ccc, #fff, #ccc);
+    border-radius: 15px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid #333;
+  }
+  
+  .power-meter-fill {
+    height: 100%;
+    background: linear-gradient(to right, 
+      var(--kirby-blue), 
+      var(--kirby-green), 
+      var(--kirby-yellow), 
+      var(--kirby-red)
+    );
+    transition: width 0.05s linear;
+    position: relative;
+  }
+  
+  .power-meter-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 4px;
+    height: 100%;
+    background-color: white;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  }
+  
+  .power-meter-zones {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    pointer-events: none;
+  }
+  
+  .weak-zone, .medium-zone, .strong-zone {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    text-shadow: 0px 0px 3px white;
+    opacity: 0.8;
+  }
+  
+  .power-meter-hint {
+    margin-top: 8px;
+    font-size: 14px;
+    color: #555;
+  }
+  
+  /* Spin selector (Kirby's Dream Course style) */
+  .spin-selector-container {
+    position: absolute;
+    bottom: 150px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 300px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    border: 3px solid var(--kirby-blue-dark);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    padding: 15px;
+    text-align: center;
+    color: #333;
+  }
+  
+  .spin-selector-label {
+    margin-bottom: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: var(--kirby-blue-dark);
+  }
+  
+  .spin-selector-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    grid-gap: 5px;
+  }
+  
+  .spin-option {
+    padding: 8px;
+    border-radius: 10px;
+    background-color: rgba(200, 200, 200, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: bold;
+    border: 2px solid transparent;
+  }
+  
+  .spin-option.selected {
+    background-color: var(--kirby-blue);
+    color: white;
+    border-color: white;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    transform: scale(1.05);
+  }
+  
+  .spin-option:hover:not(.selected) {
+    background-color: rgba(220, 220, 220, 0.8);
+  }
+  
+  .spin-option.none {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  
+  .spin-option.top {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  
+  .spin-option.back {
+    grid-column: 2;
+    grid-row: 3;
+  }
+  
+  .spin-option.left {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  
+  .spin-option.right {
+    grid-column: 3;
+    grid-row: 2;
+  }
+  
+  .spin-option .arrow {
+    font-size: 20px;
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  .spin-selector-hint {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+  }
+  
+  /* Power-up indicator */
+  .power-up-indicator {
+    position: absolute;
+    top: 70px;
+    right: 80px;
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 15px;
+    border: 3px solid var(--kirby-pink);
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: fadeInOut 3s forwards;
+    color: #333;
+    font-weight: bold;
+  }
+  
+  .power-up-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+    background-position: center;
+    background-size: cover;
+  }
+  
+  .power-up-icon.rocketDash {
+    background-color: var(--kirby-red);
+  }
+  
+  .power-up-icon.stickyMode {
+    background-color: var(--kirby-green);
+  }
+  
+  .power-up-icon.bouncy {
+    background-color: var(--kirby-blue);
+  }
+  
+  .power-up-icon.gravityFlip {
+    background-color: var(--kirby-yellow);
+  }
+  
+  @keyframes fadeInOut {
+    0% { opacity: 0; transform: translateY(-10px); }
+    10% { opacity: 1; transform: translateY(0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  
+  /* Shot state indicator */
+  .shot-state-indicator {
+    position: absolute;
+    bottom: 30px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    color: white;
+    font-size: 18px;
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(5px);
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+    font-weight: bold;
+  }
+  
+  /* Hole completed overlay */
+  .hole-completed-overlay.kirby-style {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 30px;
+    background: linear-gradient(to bottom, var(--kirby-blue), rgba(255, 255, 255, 0.9));
+    color: #333;
+    border-radius: 20px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    border: 5px solid white;
+    min-width: 350px;
+    animation: popIn 0.5s ease-out forwards;
+  }
+  
+  .hole-completed-overlay h3 {
+    margin: 0;
+    font-size: 28px;
+    color: #333;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  
+  .hole-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 15px;
+    width: 100%;
+  }
+  
+  .hole-number, .hole-par, .hole-strokes, .hole-score {
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 10px;
+    border-radius: 10px;
+    font-weight: bold;
+    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+  }
+  
+  .hole-score.good {
+    background-color: var(--kirby-green);
+    color: white;
+  }
+  
+  .hole-score.bad {
+    background-color: var(--kirby-red);
+    color: white;
+  }
+  
+  /* Game completed modal */
+  .game-completed-modal.kirby-style {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    backdrop-filter: blur(5px);
+  }
+  
+  .game-completed-modal .modal-content {
+    padding: 40px;
+    background: linear-gradient(to bottom, var(--kirby-pink), var(--kirby-blue));
+    color: white;
+    border-radius: 25px;
+    text-align: center;
+    min-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+    border: 8px solid white;
+    animation: popIn 0.5s ease-out forwards;
+  }
+  
+  .modal-content h2 {
+    margin: 0;
+    font-size: 32px;
+    color: white;
+    text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  
+  .completion-stars {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .star {
+    font-size: 50px;
+    color: var(--kirby-yellow);
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.8);
+    animation: starPulse 2s infinite;
+  }
+  
+  .star:nth-child(2) {
+    animation-delay: 0.3s;
+  }
+  
+  .star:nth-child(3) {
+    animation-delay: 0.6s;
+  }
+  
+  @keyframes starPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+  }
+  
+  .final-score {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 20px;
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 15px 25px;
+    border-radius: 15px;
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+    width: 100%;
+  }
+  
+  .relative-score {
+    font-weight: bold;
+    font-size: 24px;
+  }
+  
+  .relative-score.good {
+    color: var(--kirby-green);
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+  
+  .relative-score.bad {
+    color: var(--kirby-red);
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+  
+  @keyframes popIn {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    60% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }

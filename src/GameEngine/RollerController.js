@@ -1,4 +1,4 @@
-// Enhanced RollerController.js with Kirby's Dream Course-inspired mechanics
+// Enhanced RollerController.js with Kirby's Dream Course shot mechanics
 import * as THREE from 'three';
 
 class RollerController {
@@ -13,32 +13,40 @@ class RollerController {
     this.radius = 0.5;
     this.mass = 1;
     
-    // Shot state machine
-    this.shotState = 'idle'; // 'idle', 'aiming', 'power', 'moving'
-    this.shotGuideType = 'short'; // 'short' or 'long'
+    // Shot state machine - Following Kirby's Dream Course 3-step process
+    this.shotState = 'idle'; // 'idle', 'aiming', 'power', 'spin', 'moving'
     
-    // Movement properties
+    // Direction aiming properties
+    this.aimDirection = new THREE.Vector3(0, 0, 1);
+    this.aimArrow = null;
+    this.aimLine = null;
+    
+    // Power meter properties
+    this.powerMeter = {
+      value: 0,          // Current power value (0-1)
+      direction: 1,      // 1 for increasing, -1 for decreasing
+      speed: 1.5,        // Oscillation speed
+      oscillating: false // Whether the power meter is active
+    };
     this.shotPower = 0;
     this.maxShotPower = 10;
-    this.direction = new THREE.Vector3(0, 0, 1);
-    this.spin = new THREE.Vector2(0, 0); // x,y spin components
+    
+    // Spin properties
+    this.spin = {
+      topSpin: 0,  // Forward spin (0-1)
+      backSpin: 0, // Backward spin (0-1)
+      leftSpin: 0, // Left spin (0-1)
+      rightSpin: 0 // Right spin (0-1)
+    };
+    
+    // Movement properties
     this.isMoving = false;
     this.friction = 0.1;
+    this.airborne = false;
     
-    // Energy system (tomatoes)
+    // Energy system (tomatoes in Kirby's Dream Course)
     this.maxEnergy = 4;
     this.energy = this.maxEnergy;
-    
-    // Guide visuals
-    this.guideArrow = null;
-    this.guideLine = null;
-    
-    // Power meter
-    this.powerMeter = {
-      direction: 1, // 1 for up, -1 for down
-      speed: 0.05,
-      value: 0
-    };
     
     // Trail effect
     this.trail = null;
@@ -51,23 +59,40 @@ class RollerController {
     this.powerUpTimer = 0;
     this.powerUpDuration = 0;
     
+    // Event handlers
+    this.eventHandlers = {};
+    
     // Create the roller
     this.createRoller();
     
     // Create trail effect
     this.createTrail();
     
-    // Create guide visuals
-    this.createGuideVisuals();
+    // Create aim visuals
+    this.createAimVisuals();
+  }
+  
+  // Register event handler
+  on(event, callback) {
+    if (!this.eventHandlers[event]) {
+      this.eventHandlers[event] = [];
+    }
+    this.eventHandlers[event].push(callback);
+  }
+  
+  // Trigger event
+  triggerEvent(event, data) {
+    if (!this.eventHandlers[event]) return;
+    this.eventHandlers[event].forEach(callback => callback(data));
   }
   
   // Create the roller mesh and physics body
   createRoller() {
-    // Create roller mesh
+    // Create roller mesh - pink like Kirby
     const geometry = new THREE.SphereGeometry(this.radius, 32, 32);
     const material = new THREE.MeshPhongMaterial({
-      color: 0x00ff9f,
-      emissive: 0x00662b,
+      color: 0xff9ec6, // Pink color like Kirby
+      emissive: 0x662b4e,
       emissiveIntensity: 0.3,
       shininess: 100
     });
@@ -83,7 +108,7 @@ class RollerController {
     
     this.scene.add(this.rollerMesh);
     
-    // Create physics body
+    // Create physics body if physics system is initialized
     if (this.physics && this.physics.initialized) {
       this.rollerBody = this.physics.createDynamicBody(this.rollerMesh, {
         shape: 'ball',
@@ -92,6 +117,7 @@ class RollerController {
       });
     } else {
       // Fallback for when physics isn't initialized
+      console.warn('Physics system not initialized, using fallback physics');
       this.rollerBody = {
         position: new THREE.Vector3(
           this.initialPosition.x,
@@ -128,9 +154,9 @@ class RollerController {
       new THREE.Float32BufferAttribute(this.trailPositions, 3)
     );
     
-    // Create trail material
+    // Create trail material - pink like Kirby
     this.trailMaterial = new THREE.LineBasicMaterial({
-      color: 0x00ff9f,
+      color: 0xff9ec6,
       opacity: 0.7,
       transparent: true,
       linewidth: 1
@@ -141,198 +167,169 @@ class RollerController {
     this.scene.add(this.trail);
   }
   
-  // Create guide visuals for aiming
-  createGuideVisuals() {
-    // Create direction arrow
+  // Create aim visuals for direction step
+  createAimVisuals() {
+    // Create direction arrow (Kirby style)
     const arrowGeometry = new THREE.ConeGeometry(0.2, 0.5, 8);
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    this.guideArrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
-    this.guideArrow.rotation.x = Math.PI / 2;
-    this.guideArrow.visible = false;
-    this.scene.add(this.guideArrow);
+    this.aimArrow = new THREE.Mesh(arrowGeometry, arrowMaterial);
+    this.aimArrow.rotation.x = Math.PI / 2;
+    this.aimArrow.visible = false;
+    this.scene.add(this.aimArrow);
     
-    // Create guide line for trajectory
+    // Create aim line for trajectory preview
     const lineGeometry = new THREE.BufferGeometry();
     const lineMaterial = new THREE.LineDashedMaterial({
       color: 0xffffff,
-      dashSize: 0.3,
+      dashSize: 0.2,
       gapSize: 0.1,
       linewidth: 2
     });
     
-    // Create short and long guide points
-    const shortGuideLength = 5;
-    const longGuideLength = 10;
-    
-    // Default to short guide
-    const shortGuidePoints = [
+    // Create default guide points
+    const guidePoints = [
       new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(0, 0, shortGuideLength)
+      new THREE.Vector3(0, 0, 5)
     ];
     
-    lineGeometry.setFromPoints(shortGuidePoints);
-    this.guideLine = new THREE.Line(lineGeometry, lineMaterial);
-    this.guideLine.computeLineDistances(); // Required for dashed lines
-    this.guideLine.visible = false;
-    this.scene.add(this.guideLine);
+    lineGeometry.setFromPoints(guidePoints);
+    this.aimLine = new THREE.Line(lineGeometry, lineMaterial);
+    this.aimLine.computeLineDistances(); // Required for dashed lines
+    this.aimLine.visible = false;
+    this.scene.add(this.aimLine);
   }
   
-  // Start the aiming process
+  // -------------------- KIRBY'S DREAM COURSE 3-STEP PROCESS --------------------
+  
+  // STEP 1: Start the aiming process
   startAiming() {
     if (this.isMoving || this.shotState !== 'idle') return false;
     if (this.energy <= 0) return false;
     
+    // Set shot state to aiming
     this.shotState = 'aiming';
     
-    // Show guide arrow
-    this.guideArrow.visible = true;
-    this.updateGuideArrow();
+    // Show aim visuals
+    this.aimArrow.visible = true;
+    this.aimLine.visible = true;
+    this.updateAimVisuals();
+    
+    // Trigger shot state changed event
+    this.triggerEvent('shotStateChanged', { shotState: 'aiming' });
     
     return true;
   }
   
-  // Update guide arrow position and rotation based on current position
-  updateGuideArrow() {
-    if (!this.guideArrow || !this.rollerMesh) return;
+  // Update aim visuals (arrow and line)
+  updateAimVisuals() {
+    if (!this.aimArrow || !this.aimLine || !this.rollerMesh) return;
     
     // Set arrow position slightly in front of roller
     const position = this.rollerMesh.position.clone();
-    const offset = this.direction.clone().multiplyScalar(this.radius * 1.5);
+    const offset = this.aimDirection.clone().multiplyScalar(this.radius * 1.5);
     position.add(offset);
-    position.y += 0.3; // Raise slightly above ground
+    position.y += 0.1; // Raise slightly above ground
     
-    this.guideArrow.position.copy(position);
-    
-    // Have arrow point in direction
-    this.guideArrow.quaternion.setFromUnitVectors(
+    // Update arrow position and rotation
+    this.aimArrow.position.copy(position);
+    this.aimArrow.quaternion.setFromUnitVectors(
       new THREE.Vector3(0, 1, 0),
-      this.direction
+      this.aimDirection
     );
-  }
-  
-  // Set direction based on user input (left/right/L/R)
-  setDirection(directionInput) {
-    if (this.shotState !== 'aiming') return;
     
-    const currentAngle = Math.atan2(this.direction.x, this.direction.z);
-    let newAngle = currentAngle;
+    // Update aim line
+    const linePoints = [this.rollerMesh.position.clone()];
     
-    switch (directionInput) {
-      case 'left':
-        newAngle += 0.05; // Small increment
-        break;
-      case 'right':
-        newAngle -= 0.05; // Small increment
-        break;
-      case 'L':
-        newAngle += Math.PI / 4; // 45 degrees
-        break;
-      case 'R':
-        newAngle -= Math.PI / 4; // 45 degrees
-        break;
+    // Create points for trajectory preview based on direction and terrain
+    const previewDistance = 5; // Base preview distance
+    const steps = 10; // Number of points in preview
+    
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const distance = previewDistance * t;
+      
+      // Basic trajectory calculation (would be enhanced with terrain awareness)
+      const point = this.rollerMesh.position.clone().add(
+        this.aimDirection.clone().multiplyScalar(distance)
+      );
+      
+      // Adjust for simple terrain height (could be improved with actual terrain data)
+      point.y += 0.1; // Keep slightly above ground
+      
+      linePoints.push(point);
     }
     
-    // Update direction vector
-    this.direction.x = Math.sin(newAngle);
-    this.direction.z = Math.cos(newAngle);
-    this.direction.normalize();
-    
-    // Update arrow
-    this.updateGuideArrow();
-    
-    return true;
+    // Update line geometry
+    this.aimLine.geometry.dispose();
+    this.aimLine.geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+    this.aimLine.computeLineDistances(); // Required for dashed lines
   }
   
-  // Open shot panel to select guide line
-  openShotPanel() {
+  // Adjust aim direction based on input
+  setAimDirection(direction) {
     if (this.shotState !== 'aiming') return false;
     
-    this.shotState = 'shot_panel';
+    // Create a quaternion for rotation
+    const rotationAmount = Math.PI / 36; // 5 degrees
+    const rotationAxis = new THREE.Vector3(0, 1, 0);
+    const quaternion = new THREE.Quaternion();
     
-    // Show guide line
-    this.guideLine.visible = true;
-    this.updateGuideLine();
-    
-    return true;
-  }
-  
-  // Toggle between short and long guide
-  toggleGuideType() {
-    if (this.shotState !== 'shot_panel') return false;
-    
-    this.shotGuideType = this.shotGuideType === 'short' ? 'long' : 'short';
-    this.updateGuideLine();
-    
-    return true;
-  }
-  
-  // Update guide line based on current position, direction and type
-  updateGuideLine() {
-    if (!this.guideLine || !this.rollerMesh) return;
-    
-    const position = this.rollerMesh.position.clone();
-    position.y += 0.1; // Slightly above ground
-    
-    const guideLength = this.shotGuideType === 'short' ? 5 : 10;
-    
-    // Create guide points
-    const guidePoints = [
-      position.clone(),
-      position.clone().add(this.direction.clone().multiplyScalar(guideLength))
-    ];
-    
-    // If spin is applied, curve the line
-    if (this.spin.length() > 0) {
-      // Add intermediate points with curve
-      const numPoints = 20;
-      guidePoints.length = 0;
-      guidePoints.push(position.clone());
-      
-      for (let i = 1; i <= numPoints; i++) {
-        const t = i / numPoints;
-        const dist = guideLength * t;
-        const curveX = this.spin.x * t * t * 2;
-        const curveZ = this.spin.y * t * t * 2;
-        
-        const point = position.clone().add(
-          new THREE.Vector3(
-            this.direction.x * dist + curveX,
-            0.1,
-            this.direction.z * dist + curveZ
-          )
-        );
-        guidePoints.push(point);
-      }
+    switch (direction) {
+      case 'left':
+        quaternion.setFromAxisAngle(rotationAxis, rotationAmount);
+        break;
+      case 'right':
+        quaternion.setFromAxisAngle(rotationAxis, -rotationAmount);
+        break;
+      case 'leftLarge':
+        quaternion.setFromAxisAngle(rotationAxis, Math.PI / 4); // 45 degrees
+        break;
+      case 'rightLarge':
+        quaternion.setFromAxisAngle(rotationAxis, -Math.PI / 4); // 45 degrees
+        break;
+      default:
+        return false;
     }
     
-    // Update the line geometry
-    this.guideLine.geometry.dispose();
-    this.guideLine.geometry = new THREE.BufferGeometry().setFromPoints(guidePoints);
-    this.guideLine.computeLineDistances(); // Required for dashed lines
+    // Apply rotation to direction vector
+    this.aimDirection.applyQuaternion(quaternion);
+    this.aimDirection.normalize();
     
-    // Set line position
-    this.guideLine.position.set(0, 0, 0);
-  }
-  
-  // Start the power meter
-  startPowerMeter() {
-    if (this.shotState !== 'shot_panel') return false;
-    
-    this.shotState = 'power';
-    this.powerMeter.value = 0;
-    this.powerMeter.direction = 1;
+    // Update aim visuals
+    this.updateAimVisuals();
     
     return true;
   }
   
-  // Update power meter (called every frame while in power state)
+  // STEP 2: Start the power meter (after aiming is confirmed)
+  startPowerMeter() {
+    if (this.shotState !== 'aiming') return false;
+    
+    // Set shot state to power
+    this.shotState = 'power';
+    
+    // Reset power meter
+    this.powerMeter.value = 0;
+    this.powerMeter.direction = 1;
+    this.powerMeter.oscillating = true;
+    
+    // Hide aim arrow but keep line visible
+    this.aimArrow.visible = false;
+    
+    // Trigger shot state changed event
+    this.triggerEvent('shotStateChanged', { shotState: 'power' });
+    
+    return true;
+  }
+  
+  // Update power meter during power step
   updatePowerMeter(deltaTime) {
-    if (this.shotState !== 'power') return;
+    if (this.shotState !== 'power' || !this.powerMeter.oscillating) return;
     
-    // Update power value based on direction
-    this.powerMeter.value += this.powerMeter.direction * this.powerMeter.speed;
+    // Update power value based on oscillation
+    this.powerMeter.value += this.powerMeter.direction * this.powerMeter.speed * deltaTime;
     
-    // Reverse direction at bounds
+    // Reverse direction at boundaries
     if (this.powerMeter.value >= 1) {
       this.powerMeter.value = 1;
       this.powerMeter.direction = -1;
@@ -341,52 +338,104 @@ class RollerController {
       this.powerMeter.direction = 1;
     }
     
-    // Map power meter value to shot power
+    // Map to shot power
     this.shotPower = this.powerMeter.value * this.maxShotPower;
+    
+    // Trigger power meter update event
+    this.triggerEvent('powerMeterUpdated', { 
+      powerValue: this.powerMeter.value,
+      shotPower: this.shotPower
+    });
   }
   
-  // Get current power percentage (0-100)
-  getPowerPercent() {
-    return this.powerMeter.value * 100;
-  }
-  
-  // Apply spin to the shot
-  applySpin(spinX, spinY) {
-    if (this.shotState !== 'power' && this.shotState !== 'shot_panel') return false;
-    
-    this.spin.x = spinX;
-    this.spin.y = spinY;
-    
-    // Update guide line to show spin effect
-    this.updateGuideLine();
-    
-    return true;
-  }
-  
-  // Set shot power directly (when power meter is locked in)
-  setPower(powerPercent) {
+  // Set power directly (when power meter is locked in)
+  setPower(powerValue) {
     if (this.shotState !== 'power') return false;
     
-    this.shotPower = (powerPercent / 100) * this.maxShotPower;
+    // Stop oscillation
+    this.powerMeter.oscillating = false;
+    
+    // Set power values
+    this.powerMeter.value = Math.max(0, Math.min(1, powerValue));
+    this.shotPower = this.powerMeter.value * this.maxShotPower;
+    
+    // Advance to spin step (Kirby's Dream Course has spin after power)
+    this.shotState = 'spin';
+    
+    // Trigger shot state changed event
+    this.triggerEvent('shotStateChanged', { 
+      shotState: 'spin',
+      shotPower: this.shotPower
+    });
+    
     return true;
   }
   
-  // Release shot with current power, direction and spin
+  // STEP 3: Apply spin to the shot
+  applySpin(spinType, value = 1.0) {
+    if (this.shotState !== 'spin') return false;
+    
+    // Reset all spin values first
+    this.spin.topSpin = 0;
+    this.spin.backSpin = 0;
+    this.spin.leftSpin = 0;
+    this.spin.rightSpin = 0;
+    
+    // Set the specified spin type
+    switch (spinType) {
+      case 'top':
+        this.spin.topSpin = value;
+        break;
+      case 'back':
+        this.spin.backSpin = value;
+        break;
+      case 'left':
+        this.spin.leftSpin = value;
+        break;
+      case 'right':
+        this.spin.rightSpin = value;
+        break;
+      case 'none':
+        // All spins already reset to 0
+        break;
+      default:
+        return false;
+    }
+    
+    // Trigger spin updated event
+    this.triggerEvent('spinUpdated', { spin: { ...this.spin } });
+    
+    return true;
+  }
+  
+  // FINAL STEP: Release shot with current direction, power and spin
   releaseShot() {
-    if (this.shotState !== 'power' || this.isMoving) return false;
+    if (this.shotState !== 'spin' || this.isMoving) return false;
     
     // Calculate impulse from power and direction
-    const impulse = this.direction.clone().multiplyScalar(this.shotPower);
+    const impulse = this.aimDirection.clone().multiplyScalar(this.shotPower);
     
     // Apply spin adjustments
-    impulse.x += this.spin.x * 2;
-    impulse.z += this.spin.y * 2;
+    // Forward/backward spin affects the vertical component
+    if (this.spin.topSpin > 0) {
+      impulse.y -= this.spin.topSpin * 0.5; // Lower trajectory for longer roll
+    } else if (this.spin.backSpin > 0) {
+      impulse.y += this.spin.backSpin * 1.0; // Higher trajectory for stopping quicker
+    }
+    
+    // Left/right spin affects horizontal direction
+    const sidewaysVector = new THREE.Vector3(this.aimDirection.z, 0, -this.aimDirection.x);
+    if (this.spin.leftSpin > 0) {
+      impulse.add(sidewaysVector.clone().multiplyScalar(this.spin.leftSpin * 1.5));
+    } else if (this.spin.rightSpin > 0) {
+      impulse.add(sidewaysVector.clone().multiplyScalar(-this.spin.rightSpin * 1.5));
+    }
     
     // Apply impulse to roller
     if (this.physics && this.rollerBody) {
       this.physics.applyImpulse(this.rollerMesh, {
         x: impulse.x,
-        y: 0,
+        y: impulse.y,
         z: impulse.z
       });
     } else {
@@ -395,7 +444,7 @@ class RollerController {
     }
     
     // Calculate appropriate angular velocity (perpendicular to movement direction)
-    const axis = new THREE.Vector3(-this.direction.z, 0, this.direction.x);
+    const axis = new THREE.Vector3(-this.aimDirection.z, 0, this.aimDirection.x);
     const angularImpulse = axis.multiplyScalar(this.shotPower * 2);
     
     if (this.physics && this.rollerBody) {
@@ -412,35 +461,40 @@ class RollerController {
     // Use energy
     this.useEnergy();
     
-    // Hide guides
-    this.guideArrow.visible = false;
-    this.guideLine.visible = false;
+    // Hide aim visuals
+    this.aimArrow.visible = false;
+    this.aimLine.visible = false;
     
     // Update state
     this.shotState = 'moving';
     this.isMoving = true;
     
+    // Trigger shot state changed event
+    this.triggerEvent('shotStateChanged', { shotState: 'moving' });
+    
     return true;
   }
   
-  // Use one energy (tomato)
+  // Use one energy (tomato in Kirby's Dream Course)
   useEnergy() {
     this.energy = Math.max(0, this.energy - 1);
+    this.triggerEvent('energyChanged', { energy: this.energy });
     return this.energy;
   }
   
   // Replenish energy (e.g., when collecting power-ups)
   replenishEnergy(amount = 1) {
     this.energy = Math.min(this.maxEnergy, this.energy + amount);
+    this.triggerEvent('energyChanged', { energy: this.energy });
     return this.energy;
   }
   
-  // Add mid-flight bounce
+  // Add mid-flight bounce (Kirby's Dream Course key mechanic)
   addBounce() {
-    if (!this.isMoving) return false;
+    if (this.shotState !== 'moving' || !this.isMoving) return false;
     
     // Apply upward impulse
-    const bounceStrength = 2.0 * (1 + this.shotPower / 10);
+    const bounceStrength = 3.0; // Strong bounce like in Kirby's Dream Course
     
     if (this.physics && this.rollerBody) {
       this.physics.applyImpulse(this.rollerMesh, {
@@ -448,10 +502,74 @@ class RollerController {
         y: bounceStrength,
         z: 0
       });
+      
+      // Kirby's Dream Course also allows adjusting direction during bounce
+      // This would be connected to input handling
     } else {
       // Fallback
       const bounceImpulse = new THREE.Vector3(0, bounceStrength, 0);
       this.rollerBody.applyImpulse(bounceImpulse);
+    }
+    
+    this.airborne = true;
+    
+    // Trigger bounce event
+    this.triggerEvent('bounce', { position: this.rollerMesh.position.clone() });
+    
+    return true;
+  }
+  
+  // Adjust direction during bounce (Kirby's Dream Course mechanic)
+  adjustBounceDirection(direction) {
+    if (this.shotState !== 'moving' || !this.airborne) return false;
+    
+    // Get current velocity
+    let velocity;
+    if (this.physics && this.rollerBody) {
+      velocity = this.physics.getLinearVelocity(this.rollerMesh);
+    } else {
+      velocity = this.rollerBody.velocity;
+    }
+    
+    // Create horizontal velocity vector
+    const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
+    const speed = horizontalVelocity.length();
+    
+    // Define adjustment amount
+    const adjustmentFactor = 0.5; // How much to adjust direction
+    
+    // Create adjustment vector based on input direction
+    let adjustmentVector = new THREE.Vector3(0, 0, 0);
+    switch (direction) {
+      case 'left':
+        adjustmentVector.set(-adjustmentFactor, 0, 0);
+        break;
+      case 'right':
+        adjustmentVector.set(adjustmentFactor, 0, 0);
+        break;
+      case 'forward':
+        adjustmentVector.set(0, 0, -adjustmentFactor);
+        break;
+      case 'backward':
+        adjustmentVector.set(0, 0, adjustmentFactor);
+        break;
+    }
+    
+    // Apply adjustment to velocity
+    if (this.physics && this.rollerBody) {
+      // Keep the same speed but adjust direction
+      horizontalVelocity.normalize().add(adjustmentVector).normalize().multiplyScalar(speed);
+      
+      this.physics.setLinearVelocity(this.rollerMesh, {
+        x: horizontalVelocity.x,
+        y: velocity.y, // Keep vertical velocity
+        z: horizontalVelocity.z
+      });
+    } else {
+      // Fallback
+      horizontalVelocity.normalize().add(adjustmentVector).normalize().multiplyScalar(speed);
+      this.rollerBody.velocity.x = horizontalVelocity.x;
+      this.rollerBody.velocity.z = horizontalVelocity.z;
     }
     
     return true;
@@ -486,8 +604,14 @@ class RollerController {
     // Reset state
     this.shotState = 'idle';
     this.isMoving = false;
+    this.airborne = false;
     this.shotPower = 0;
-    this.spin.set(0, 0);
+    
+    // Reset spin
+    this.spin.topSpin = 0;
+    this.spin.backSpin = 0;
+    this.spin.leftSpin = 0;
+    this.spin.rightSpin = 0;
     
     // Reset power-ups
     this.deactivatePowerUp();
@@ -495,9 +619,12 @@ class RollerController {
     // Reset trail
     this.resetTrail();
     
-    // Hide guides
-    if (this.guideArrow) this.guideArrow.visible = false;
-    if (this.guideLine) this.guideLine.visible = false;
+    // Hide aim visuals
+    if (this.aimArrow) this.aimArrow.visible = false;
+    if (this.aimLine) this.aimLine.visible = false;
+    
+    // Trigger shot state changed event
+    this.triggerEvent('shotStateChanged', { shotState: 'idle' });
     
     return true;
   }
@@ -519,7 +646,7 @@ class RollerController {
     this.trail.geometry.attributes.position.needsUpdate = true;
   }
   
-  // Activate a power-up
+  // Activate a power-up (similar to Kirby's copy abilities)
   activatePowerUp(type) {
     // Deactivate current power-up if any
     this.deactivatePowerUp();
@@ -559,7 +686,7 @@ class RollerController {
         break;
         
       case 'stickyMode':
-        // Increase friction coefficient
+        // Increase friction coefficient (for climbing walls like Wheel Kirby)
         this.friction = 0.8;
         
         // Set trail effect to sticky mode
@@ -570,7 +697,7 @@ class RollerController {
         break;
         
       case 'bouncy':
-        // Set bouncy effect flag (applied during collisions)
+        // Set bouncy effect flag (like Ball Kirby)
         this.rollerMesh.userData.bouncy = true;
         
         // Set trail effect
@@ -581,7 +708,7 @@ class RollerController {
         break;
         
       case 'gravityFlip':
-        // Flip gravity direction
+        // Flip gravity direction (like UFO Kirby)
         if (this.physics && this.physics.initialized) {
           this.physics.flipGravity();
         }
@@ -614,6 +741,13 @@ class RollerController {
     }
     
     this.powerUpTimer = this.powerUpDuration;
+    
+    // Trigger power-up activated event
+    this.triggerEvent('powerUpActivated', { 
+      type: this.activePowerUp,
+      duration: this.powerUpDuration
+    });
+    
     return true;
   }
   
@@ -640,97 +774,16 @@ class RollerController {
     }
     
     // Reset trail effect
-    this.trailMaterial.color.set(0x00ff9f);
+    this.trailMaterial.color.set(0xff9ec6); // Back to Kirby pink
     this.trailMaterial.opacity = 0.7;
+    
+    // Trigger power-up deactivated event
+    this.triggerEvent('powerUpDeactivated', { type: this.activePowerUp });
     
     this.activePowerUp = null;
     this.powerUpTimer = 0;
   }
   
-  // Check for power-up collision
-  checkPowerUpCollision(powerUps) {
-    if (!powerUps || !this.rollerMesh) return null;
-    
-    for (let i = 0; i < powerUps.length; i++) {
-      const powerUp = powerUps[i];
-      
-      if (powerUp.collected || !powerUp.mesh) continue;
-      
-      // Simple distance check for collision
-      const distance = this.rollerMesh.position.distanceTo(powerUp.mesh.position);
-      
-      if (distance < this.radius + 0.3) { // Roller radius + power-up radius
-        // Mark as collected
-        powerUp.collected = true;
-        powerUp.mesh.visible = false;
-        
-        // Replenish energy when collecting a power-up
-        this.replenishEnergy(1);
-        
-        return powerUp.type;
-      }
-    }
-    
-    return null;
-  }
-  
-  // Check if roller is in hole
-  checkHoleCollision(holePosition) {
-    if (!holePosition || !this.rollerMesh) return false;
-    
-    // Calculate distance to hole
-    const distance = Math.sqrt(
-      Math.pow(this.rollerMesh.position.x - holePosition.x, 2) +
-      Math.pow(this.rollerMesh.position.z - holePosition.z, 2)
-    );
-    
-    // Check if distance is less than hole radius and roller is slow enough
-    const holeRadius = 0.7;
-    
-    let speed = 0;
-    if (this.physics && this.rollerBody) {
-      const velocity = this.physics.getLinearVelocity(this.rollerMesh);
-      speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
-    } else {
-      speed = this.rollerBody.velocity.length();
-    }
-    
-    const speedThreshold = 2;
-    
-    return distance < holeRadius && speed < speedThreshold;
-  }
-  // Add these methods to the RollerController class in src/GameEngine/RollerController.js
-
-  /**
-   * Get the current charge percentage (0-100)
-   * @returns {number} Charge percentage
-   */
-  getChargePercent() {
-    if (this.maxShotPower <= 0) return 0;
-    return (this.shotPower / this.maxShotPower) * 100;
-  }
-
-  /**
-   * Start charging the shot
-   * @returns {boolean} Whether charging started successfully
-   */
-  startCharging() {
-    if (this.isMoving) return false;
-    
-    // Set shot state
-    this.shotState = 'aiming';
-    this.shotPower = 0;
-    
-    // Show guide visuals
-    if (this.guideArrow) {
-      this.guideArrow.visible = true;
-      this.updateGuideArrow();
-    }
-    
-    console.log("Shot charging started");
-    return true;
-  }
-
   // Update physics and visuals
   update(deltaTime) {
     // Skip if not created yet
@@ -738,10 +791,16 @@ class RollerController {
     
     // Update shot state machine
     switch (this.shotState) {
+      case 'aiming':
+        // Update aim visuals while aiming
+        this.updateAimVisuals();
+        break;
+        
       case 'power':
+        // Update power meter during power step
         this.updatePowerMeter(deltaTime);
         break;
-      
+        
       case 'moving':
         // Check if roller has stopped
         let linearSpeed = 0;
@@ -753,12 +812,46 @@ class RollerController {
           
           const angVelocity = this.physics.getAngularVelocity(this.rollerMesh);
           angularSpeed = Math.sqrt(angVelocity.x * angVelocity.x + angVelocity.z * angVelocity.z);
+          
+          // Check if roller is on ground (not airborne)
+          // Simple y-velocity check (would be improved with actual ground collision detection)
+          const yVelocity = Math.abs(velocity.y);
+          this.airborne = yVelocity > 0.5; // Consider airborne if moving vertically
+          
+          // Apply different friction based on surface type
+          // In a real implementation, this would check what type of surface the roller is on
+          if (!this.airborne) {
+            // Apply friction to slow down the roller (like in Kirby's Dream Course)
+            const frictionFactor = 0.98; // Basic friction
+            
+            // Apply additional friction based on active power-up
+            if (this.activePowerUp === 'stickyMode') {
+              this.physics.setLinearVelocity(this.rollerMesh, {
+                x: velocity.x * 0.95, // Higher friction for sticky mode
+                y: velocity.y,
+                z: velocity.z * 0.95
+              });
+            }
+          }
         } else {
+          // Fallback behavior when physics system isn't available
           linearSpeed = this.rollerBody.velocity.length();
           angularSpeed = this.rollerBody.angularVelocity.length();
+          
+          // Simple dampening
+          this.rollerBody.velocity.multiplyScalar(0.98);
+          this.rollerBody.angularVelocity.multiplyScalar(0.98);
         }
         
-        if (linearSpeed < 0.05 && angularSpeed < 0.05) {
+        // Update trail
+        this.updateTrail();
+        
+        // Check if the roller has stopped moving
+        const velocityThreshold = 0.1;
+        const angularThreshold = 0.1;
+        
+        if (linearSpeed < velocityThreshold && angularSpeed < angularThreshold && !this.airborne) {
+          // Ball has stopped - set to idle state
           if (this.physics && this.rollerBody) {
             this.physics.setLinearVelocity(this.rollerMesh, { x: 0, y: 0, z: 0 });
             this.physics.setAngularVelocity(this.rollerMesh, { x: 0, y: 0, z: 0 });
@@ -769,18 +862,11 @@ class RollerController {
           
           this.isMoving = false;
           this.shotState = 'idle';
+          
+          // Trigger shot state changed event
+          this.triggerEvent('shotStateChanged', { shotState: 'idle' });
         }
-        
-        // Update trail
-        this.updateTrail();
         break;
-    }
-    
-    // Update guide visuals if in aiming or shot panel states
-    if (this.shotState === 'aiming') {
-      this.updateGuideArrow();
-    } else if (this.shotState === 'shot_panel') {
-      this.updateGuideLine();
     }
     
     // Update power-up timer
@@ -816,6 +902,144 @@ class RollerController {
     
     // Update the geometry
     this.trail.geometry.attributes.position.needsUpdate = true;
+    
+    // Apply power-up effects to trail
+    if (this.activePowerUp) {
+      // Make trail more visible during power-ups
+      this.trailMaterial.opacity = 0.9;
+      
+      // Pulse effect for power-ups
+      const pulse = Math.sin(Date.now() * 0.01) * 0.1 + 0.9;
+      this.trailMaterial.opacity *= pulse;
+    } else {
+      // Normal trail
+      this.trailMaterial.opacity = 0.7;
+    }
+  }
+  
+  // Check for power-up collision
+  checkPowerUpCollision(powerUps) {
+    if (!powerUps || !this.rollerMesh) return null;
+    
+    for (let i = 0; i < powerUps.length; i++) {
+      const powerUp = powerUps[i];
+      
+      if (powerUp.collected || !powerUp.mesh) continue;
+      
+      // Simple distance check for collision
+      const distance = this.rollerMesh.position.distanceTo(powerUp.mesh.position);
+      
+      if (distance < this.radius + 0.3) { // Roller radius + power-up radius
+        // Mark as collected
+        powerUp.collected = true;
+        powerUp.mesh.visible = false;
+        
+        // Replenish energy when collecting a power-up (like in Kirby's Dream Course)
+        this.replenishEnergy(1);
+        
+        // Trigger power-up collected event
+        this.triggerEvent('powerUpCollected', { type: powerUp.type });
+        
+        return powerUp.type;
+      }
+    }
+    
+    return null;
+  }
+  
+  // Check if roller is in hole
+  checkHoleCollision(holePosition) {
+    if (!holePosition || !this.rollerMesh) return false;
+    
+    // Calculate distance to hole
+    const distance = Math.sqrt(
+      Math.pow(this.rollerMesh.position.x - holePosition.x, 2) +
+      Math.pow(this.rollerMesh.position.z - holePosition.z, 2)
+    );
+    
+    // Check if distance is less than hole radius and roller is slow enough
+    const holeRadius = 0.7;
+    
+    let speed = 0;
+    if (this.physics && this.rollerBody) {
+      const velocity = this.physics.getLinearVelocity(this.rollerMesh);
+      speed = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+    } else {
+      speed = this.rollerBody.velocity.length();
+    }
+    
+    const speedThreshold = 2;
+    
+    if (distance < holeRadius && speed < speedThreshold) {
+      // Add the falling into hole animation like in Kirby's Dream Course
+      this.startHoleAnimation();
+      return true;
+    }
+    
+    return false;
+  }
+  
+  // Start the hole animation (Kirby falling into hole)
+  startHoleAnimation() {
+    if (this.holeAnimationActive) return;
+    
+    this.holeAnimationActive = true;
+    
+    // Disable physics during animation
+    if (this.physics && this.rollerBody) {
+      this.physics.setLinearVelocity(this.rollerMesh, { x: 0, y: 0, z: 0 });
+      this.physics.setAngularVelocity(this.rollerMesh, { x: 0, y: 0, z: 0 });
+    }
+    
+    // Store starting Y position for animation
+    this.holeAnimationStartY = this.rollerMesh.position.y;
+    this.holeAnimationTimer = 0;
+    this.holeAnimationDuration = 1.0; // 1 second animation
+    
+    // Trigger hole animation started event
+    this.triggerEvent('holeAnimationStarted', { position: this.rollerMesh.position.clone() });
+  }
+  
+  // Update hole animation
+  updateHoleAnimation(deltaTime) {
+    if (!this.holeAnimationActive) return;
+    
+    this.holeAnimationTimer += deltaTime;
+    
+    // Calculate animation progress (0 to 1)
+    const progress = Math.min(this.holeAnimationTimer / this.holeAnimationDuration, 1.0);
+    
+    // Animate Kirby falling into hole
+    // Start with a small jump up, then fall down
+    let yOffset;
+    if (progress < 0.2) {
+      // Initial small jump
+      yOffset = Math.sin(progress * Math.PI * 2.5) * 0.3;
+    } else {
+      // Fall down and shrink
+      yOffset = -(progress - 0.2) * 2;
+      
+      // Shrink the ball as it falls
+      const scale = 1.0 - (progress - 0.2) * 1.25;
+      this.rollerMesh.scale.set(scale, scale, scale);
+    }
+    
+    // Update position
+    this.rollerMesh.position.y = this.holeAnimationStartY + yOffset;
+    
+    // Spin the ball
+    this.rollerMesh.rotation.y += deltaTime * 10;
+    
+    // Check if animation is complete
+    if (progress >= 1.0) {
+      this.holeAnimationActive = false;
+      
+      // Hide the ball
+      this.rollerMesh.visible = false;
+      
+      // Trigger hole animation completed event
+      this.triggerEvent('holeAnimationCompleted', {});
+    }
   }
   
   // Get roller state
@@ -830,7 +1054,9 @@ class RollerController {
       activePowerUp: this.activePowerUp,
       powerUpTimer: this.powerUpTimer,
       energy: this.energy,
-      shotPower: this.shotPower
+      shotPower: this.shotPower,
+      airborne: this.airborne,
+      spin: { ...this.spin }
     };
   }
 }
