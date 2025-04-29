@@ -1,0 +1,79 @@
+.game-container {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#gameCanvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.loading-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #000;
+  color: #fff;
+  font-size: 24px;
+  z-index: 2;
+}
+
+/* Shot UI elements */
+.power-meter {
+  position: absolute;
+  top: 50%;
+  right: 30px;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 200px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+  overflow: hidden;
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.power-level {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 0%; /* Updated dynamically */
+  background-color: #33cc33; /* Green by default, changes with power level */
+  transition: height 0.05s ease-out;
+}
+
+.angle-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140px;
+  height: 140px;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  pointer-events: none; /* Don't block mouse events */
+}
+
+.angle-arrow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120px;
+  height: 20px;
+  background-color: rgba(255, 255, 255, 0.7);
+  transform-origin: 0% 50%;
+  transform: translateY(-50%); /* Dynamic rotation added via JS */
+  clip-path: polygon(0% 0%, 80% 0%, 80% 30%, 100% 50%, 80% 70%, 80% 100%, 0% 100%);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+} 

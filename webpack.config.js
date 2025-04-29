@@ -1,8 +1,9 @@
 const path = require('path');
 
 module.exports = {
-  entry: './src/index.ts',
+  entry: './src/index.tsx',
   mode: 'development',
+  devtool: 'source-map',
   module: {
     rules: [
       {
@@ -11,23 +12,29 @@ module.exports = {
         exclude: /node_modules/,
       },
       {
-        test: /\.glsl$/,
-        use: 'raw-loader',
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
       },
     ],
   },
   resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
+    extensions: ['.tsx', '.ts', '.js', '.jsx'],
+    modules: [path.resolve(__dirname, 'src'), 'node_modules']
   },
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
+    publicPath: '/'
   },
   devServer: {
     static: {
       directory: path.join(__dirname, 'public'),
     },
+    historyApiFallback: true,
     compress: true,
-    port: 8080,
+    port: 3000,
+    hot: true,
+    open: true,
+    host: '0.0.0.0',
   },
 };
