@@ -265,7 +265,9 @@ export function setAngularVelocity(
   body: RAPIER.RigidBody,
   velocity: THREE.Vector3
 ): void {
-  body.setAngvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
+  // Convert THREE.Vector3 to a format Rapier expects
+  const rapierVelocity = { x: velocity.x, y: velocity.y, z: velocity.z };
+  body.setAngvel(rapierVelocity, true);
 }
 
 /**
@@ -319,4 +321,19 @@ export function isBodyMoving(
   
   // Check if either linear or angular velocity is above the threshold
   return linvelMag > threshold || angvelMag > threshold;
+}
+
+/**
+ * Apply torque to a rigid body
+ * @param body The rigid body to apply torque to
+ * @param torque The torque vector to apply
+ */
+export function applyTorque(
+  body: RAPIER.RigidBody,
+  torque: THREE.Vector3
+): void {
+  if (!body) return;
+  
+  // Apply the torque
+  body.addTorque({ x: torque.x, y: torque.y, z: torque.z }, true);
 } 
