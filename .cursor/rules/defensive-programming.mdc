@@ -1,0 +1,104 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Defensive Programming in TypeScript/JavaScript
+
+- **Safe Property Access**
+  - Always check objects for null/undefined before accessing their properties
+  - Use optional chaining (`?.`) for property access when object might be null/undefined
+  
+  ```typescript
+  // ✅ DO: Check for undefined/null before accessing properties
+  if (this.scoreTermMap) {
+    const term = this.scoreTermMap[scoreKey];
+  }
+  
+  // ✅ DO: Use optional chaining
+  const term = this.scoreTermMap?.scoreKey;
+  
+  // ❌ DON'T: Directly access properties without checks
+  const term = this.scoreTermMap[scoreKey]; // Might throw error if scoreTermMap is undefined!
+  ```
+
+- **NaN Handling**
+  - Always check for NaN using isNaN() before performing calculations or using values as object keys
+  - Provide sensible defaults for NaN values
+  
+  ```typescript
+  // ✅ DO: Check for NaN before using values
+  const relScore = this.getScoreRelativeToPar();
+  if (isNaN(relScore)) {
+    return 'default value';
+  }
+  
+  // ❌ DON'T: Use potentially NaN values without checking
+  const scoreKey = Math.min(Math.max(relScore, -3), 3).toString();
+  return this.scoreTermMap[scoreKey]; // Can produce "Cannot read properties of undefined (reading 'NaN')"
+  ```
+
+- **Initialization Guards**
+  - Ensure class properties are properly initialized before use
+  - Use constructor initialization or provide default values
+  - Use the non-null assertion operator (`!`) judiciously
+  
+  ```typescript
+  // ✅ DO: Initialize collections in constructor or at declaration
+  private readonly scoreTermMap: Record<string, string> = {
+    '0': 'Par',
+    '1': 'Bogey'
+    // ...other entries
+  };
+  
+  // ✅ DO: Guard class methods against uninitialized state
+  private getScoreTerm(): string {
+    // Check if initialization is complete
+    if (!this.scoreTermMap) {
+      return 'Par'; // Safe default if not initialized
+    }
+    
+    // Rest of method...
+  }
+  
+  // ❌ DON'T: Assume properties are initialized
+  private updateDisplay(): void {
+    this.scoreTermElement.textContent = this.getScoreTerm(); // May fail if scoreTermElement not initialized
+  }
+  ```
+
+- **Type Guards for Object Keys**
+  - Verify keys exist in an object before access
+  - Use the `in` operator or explicit checks for property existence
+  
+  ```typescript
+  // ✅ DO: Check key existence
+  if (scoreKey in this.scoreTermMap) {
+    return this.scoreTermMap[scoreKey];
+  }
+  
+  // ✅ DO: Check for undefined property
+  if (this.scoreTermMap[scoreKey] !== undefined) {
+    return this.scoreTermMap[scoreKey];
+  }
+  
+  // ❌ DON'T: Assume keys exist
+  return this.scoreTermMap[scoreKey]; // May return undefined
+  ```
+
+- **Default Value Patterns**
+  - Always provide fallbacks when values might be missing
+  - Be explicit about default return values in functions
+  
+  ```typescript
+  // ✅ DO: Use explicit fallbacks
+  return this.scoreTermMap[scoreKey] || 'Unknown';
+  
+  // ✅ DO: Use more complex fallback logic with ternary
+  return this.scoreTermMap[scoreKey] !== undefined
+    ? this.scoreTermMap[scoreKey]
+    : (relScore > 0 ? `+${relScore}` : relScore.toString());
+  
+  // ❌ DON'T: Return without handling edge cases
+  return this.scoreTermMap[scoreKey]; // May return undefined
+  ```

@@ -1,0 +1,123 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# System State Management
+
+- **Clear State Transition Patterns**
+  - Define explicit state transition methods rather than direct state modification
+  - Use enum values for states rather than string literals
+  - Log state transitions for debugging
+  
+  ```typescript
+  // ✅ DO: Define state enum
+  export enum SystemState {
+    IDLE,
+    ACTIVE,
+    PAUSED
+  }
+  
+  // ✅ DO: Create explicit transition methods
+  private currentState: SystemState = SystemState.IDLE;
+  
+  public transitionToState(newState: SystemState): void {
+    const prevState = this.currentState;
+    this.currentState = newState;
+    
+    // Perform state-specific setup/teardown
+    this.handleStateChange(prevState, newState);
+    
+    // Log for debugging
+    console.log(`State changed from ${SystemState[prevState]} to ${SystemState[newState]}`);
+  }
+  
+  // ❌ DON'T: Modify state directly without proper transitions
+  this.currentState = SystemState.ACTIVE; // Missing transition logic
+  ```
+
+- **Flag Consistency**
+  - Use consistent patterns for boolean flags
+  - Provide public getters for private state flags
+  - Initialize all flags explicitly 
+  
+  ```typescript
+  // ✅ DO: Initialize flags explicitly
+  private isActive: boolean = false;
+  private isInputEnabled: boolean = false;
+  
+  // ✅ DO: Provide getters for private flags
+  public getIsActive(): boolean {
+    return this.isActive;
+  }
+  
+  // ✅ DO: Use methods to modify flags with side effects
+  public enableInput(): void {
+    this.isInputEnabled = true;
+    // Additional setup...
+  }
+  
+  // ❌ DON'T: Use inconsistent naming patterns
+  private active: boolean; // Should be isActive for consistency
+  private inputEnabled: boolean; // Should be isInputEnabled
+  ```
+
+- **State Change Listeners**
+  - Implement observer pattern for state changes
+  - Allow external systems to respond to state transitions
+  - Ensure listeners can be properly added and removed
+  
+  ```typescript
+  // ✅ DO: Implement listener management
+  private stateChangeListeners: Array<(prevState: SystemState, newState: SystemState) => void> = [];
+  
+  public addStateChangeListener(listener: (prevState: SystemState, newState: SystemState) => void): void {
+    this.stateChangeListeners.push(listener);
+  }
+  
+  public removeStateChangeListener(listener: (prevState: SystemState, newState: SystemState) => void): void {
+    const index = this.stateChangeListeners.indexOf(listener);
+    if (index !== -1) {
+      this.stateChangeListeners.splice(index, 1);
+    }
+  }
+  
+  private notifyStateChangeListeners(prevState: SystemState, newState: SystemState): void {
+    for (const listener of this.stateChangeListeners) {
+      listener(prevState, newState);
+    }
+  }
+  
+  // ❌ DON'T: Fail to provide removal mechanism for listeners
+  public addStateChangeListener(listener: Function): void {
+    this.listeners.push(listener); // No way to remove!
+  }
+  ```
+
+- **Visibility and Input State Handling**
+  - Handle visibility changes (browser tab changes, etc.)
+  - Manage input state consistently in response to system state
+  - Reset input tracking when state changes require it
+  
+  ```typescript
+  // ✅ DO: Reset input tracking on state changes
+  private handleStateChange(prevState: SystemState, newState: SystemState): void {
+    if (prevState === SystemState.ACTIVE && newState !== SystemState.ACTIVE) {
+      // Clear any active input tracking when leaving active state
+      this.isInputActive = false;
+      this.inputStartPosition.set(0, 0);
+    }
+  }
+  
+  // ✅ DO: Handle visibility changes
+  private handleVisibilityChange = (): void => {
+    if (document.hidden && this.currentState === SystemState.ACTIVE) {
+      this.transitionToState(SystemState.PAUSED);
+    }
+  }
+  
+  // ❌ DON'T: Forget to reset state flags on transitions
+  private handleStateChange(prevState: SystemState, newState: SystemState): void {
+    // Missing input state reset when state changes
+  }
+  ```

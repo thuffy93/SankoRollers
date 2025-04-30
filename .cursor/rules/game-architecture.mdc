@@ -3,3 +3,156 @@ description:
 globs:
 alwaysApply: false
 ---
+# Game Architecture Best Practices
+
+- **Separate Game Logic from Rendering**
+  - Use a clean architecture that separates rendering, physics, and game logic
+  - Implement a system-based approach with clear responsibilities
+  
+  ```typescript
+  // ✅ DO: Separate systems with clear responsibilities
+  // RenderSystem.ts
+  export class RenderSystem {
+    private renderer: THREE.WebGLRenderer;
+    private scene: THREE.Scene;
+    
+    update(deltaTime: number): void {
+      // Handle only rendering concerns
+    }
+  }
+  
+  // PhysicsSystem.ts
+  export class PhysicsSystem {
+    private world: RAPIER.World;
+    
+    update(deltaTime: number): void {
+      // Handle only physics simulation
+    }
+  }
+  
+  // ❌ DON'T: Mix concerns in a single monolithic class
+  class GameManager {
+    // Wrong: Mixing rendering, physics, and game logic
+    update() {
+      this.updatePhysics();
+      this.renderScene();
+      this.checkGameRules();
+    }
+  }
+  ```
+
+- **Implement a Clean Component/Entity Relationship**
+  - Use composition over inheritance for game objects
+  - Clearly define interfaces for components to implement
+  
+  ```typescript
+  // ✅ DO: Use composition with clear interfaces
+  interface PhysicsComponent {
+    body: RAPIER.RigidBody;
+    update(deltaTime: number): void;
+  }
+  
+  interface RenderComponent {
+    mesh: THREE.Mesh;
+    update(deltaTime: number): void;
+  }
+  
+  class GameObject {
+    private components: any[] = [];
+    
+    addComponent(component: any): void {
+      this.components.push(component);
+    }
+    
+    update(deltaTime: number): void {
+      this.components.forEach(component => component.update(deltaTime));
+    }
+  }
+  
+  // ❌ DON'T: Use deep inheritance hierarchies
+  class BaseObject {}
+  class PhysicsObject extends BaseObject {}
+  class RenderablePhysicsObject extends PhysicsObject {} // Wrong: inflexible
+  ```
+
+- **Implement Proper Game Loop**
+  - Use requestAnimationFrame for rendering
+  - Decouple physics update rate from frame rate when needed
+  
+  ```typescript
+  // ✅ DO: Implement a proper game loop with time delta
+  class GameSystem {
+    private lastTime: number = 0;
+    
+    start(): void {
+      this.lastTime = performance.now();
+      this.gameLoop();
+    }
+    
+    private gameLoop(): void {
+      const currentTime = performance.now();
+      const deltaTime = (currentTime - this.lastTime) / 1000; // Convert to seconds
+      this.lastTime = currentTime;
+      
+      this.update(deltaTime);
+      this.render();
+      
+      requestAnimationFrame(() => this.gameLoop());
+    }
+    
+    private update(deltaTime: number): void {
+      // Fixed timestep for physics if needed
+      const fixedDelta = 1/60; // 60 Hz physics update
+      this.physicsSystem.update(fixedDelta);
+      
+      // Regular update for other systems
+      this.inputSystem.update(deltaTime);
+      this.gameLogicSystem.update(deltaTime);
+    }
+    
+    private render(): void {
+      this.renderSystem.render();
+    }
+  }
+  
+  // ❌ DON'T: Ignore time deltas or mix update rates incorrectly
+  function badGameLoop() {
+    // Wrong: No time delta consideration
+    updatePhysics();
+    updateGameLogic();
+    render();
+    requestAnimationFrame(badGameLoop);
+  }
+  ```
+
+- **Handle Resources Efficiently**
+  - Use asset managers to prevent duplicate loading
+  - Implement proper loading/unloading strategies
+  
+  ```typescript
+  // ✅ DO: Use centralized resource management
+  class ResourceManager {
+    private textures: Map<string, THREE.Texture> = new Map();
+    private geometries: Map<string, THREE.BufferGeometry> = new Map();
+    
+    getTexture(path: string): THREE.Texture {
+      if (!this.textures.has(path)) {
+        const texture = new THREE.TextureLoader().load(path);
+        this.textures.set(path, texture);
+      }
+      return this.textures.get(path)!;
+    }
+    
+    dispose(): void {
+      this.textures.forEach(texture => texture.dispose());
+      this.geometries.forEach(geometry => geometry.dispose());
+    }
+  }
+  
+  // ❌ DON'T: Load resources multiple times or forget cleanup
+  function createObjects() {
+    // Wrong: Loading the same texture multiple times
+    const texture1 = new THREE.TextureLoader().load('/texture.jpg');
+    const texture2 = new THREE.TextureLoader().load('/texture.jpg'); // Duplicate load
+  }
+  ```

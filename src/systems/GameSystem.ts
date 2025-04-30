@@ -3,6 +3,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { Ball } from '../models/Ball';
 import { TestEnvironment } from '../components/TestEnvironment';
 import { BallTest } from '../components/BallTest';
+import { CourseTest } from '../components/CourseTest';
+import { TerrainGenerator } from '../models/TerrainGenerator';
 import { 
   createPhysicsWorld, 
   initRapier,
@@ -18,6 +20,8 @@ import { InputManager } from './InputManager';
 import { InputHelpDisplay } from './InputHelpDisplay';
 import { FeedbackSystem, FeedbackType } from './FeedbackSystem';
 import { ShotResultsSystem } from './ShotResultsSystem';
+import { UIManager, UIState } from './UIManager';
+import { UICoordinator } from './ui/UICoordinator';
 
 // Game state enum
 export enum GameState {
@@ -37,6 +41,7 @@ let camera: IsometricCamera;
 let cameraController: CameraController;
 let world: RAPIER.World;
 let testEnvironment: TestEnvironment;
+let courseTest: CourseTest;
 let ballTest: BallTest;
 let debugRenderer: DebugRenderer;
 let lastTime: number = 0;
@@ -67,6 +72,10 @@ let feedbackSystem: FeedbackSystem;
 // ShotResultsSystem
 let shotResultsSystem: ShotResultsSystem | null = null;
 
+// UI systems
+let uiManager: UIManager;
+let uiCoordinator: UICoordinator;
+
 // Performance monitoring
 let frameCount = 0;
 let lastFpsTime = 0;
@@ -94,9 +103,8 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
   // Add lighting
   setupLighting();
   
-  // Create test environment
-  testEnvironment = new TestEnvironment(scene, world);
-  testEnvironment.initialize();
+  // Create course test
+  courseTest = new CourseTest(scene, world);
   
   // Create ball test
   ballTest = new BallTest(scene, world);
@@ -114,6 +122,11 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     // Initialize the power meter system
     powerMeterSystem = new PowerMeterSystem(scene, shotSystem);
     
+    // Connect PowerMeterSystem to UICoordinator
+    if (uiCoordinator) {
+      uiCoordinator.setPowerMeterSystem(powerMeterSystem);
+    }
+    
     // Initialize the spin control system
     spinControlSystem = new SpinControlSystem(scene, shotSystem);
     
@@ -128,6 +141,11 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     inputManager.setOnDeviceChangeCallback((device) => {
       console.log(`Active input device changed to: ${device}`);
       inputHelpDisplay.setDevice(device);
+      
+      // Update UI manager with new input device
+      if (uiManager) {
+        uiManager.updateInputDevice(device);
+      }
     });
     
     // Register a state change listener for the shot system
@@ -139,6 +157,15 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
       
       // Update help display with new state
       inputHelpDisplay.setState(newState);
+      
+      // Update UI manager with new shot state
+      uiManager.updateShotState(newState);
+      
+      // If we have angle parameters in aiming, update the angle indicator
+      if (newState === ShotState.POWER && params && params.angle) {
+        const angle = Math.atan2(params.angle.y, params.angle.x);
+        uiCoordinator.updateAimAngle(angle);
+      }
     });
     
     // Create camera controller to follow the ball
@@ -194,6 +221,15 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     }
   }
 
+  // Initialize UI Manager
+  uiManager = new UIManager(scene, container);
+  
+  // Initialize UI Coordinator
+  uiCoordinator = new UICoordinator(uiManager);
+  
+  // Set up menu UIs
+  uiCoordinator.setupAllMenus();
+
   // Start the animation loop
   lastTime = performance.now();
   lastFpsTime = lastTime;
@@ -235,7 +271,7 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     
     debugRenderer.dispose();
     ballTest.dispose();
-    testEnvironment.dispose();
+    courseTest.dispose();
     
     // Remove event listeners
     window.removeEventListener('resize', handleResize);
@@ -255,6 +291,16 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     
     if (inputHelpDisplay) {
       inputHelpDisplay.dispose();
+    }
+    
+    // Clean up UI coordinator
+    if (uiCoordinator) {
+      uiCoordinator.dispose();
+    }
+    
+    // Clean up UI manager
+    if (uiManager) {
+      uiManager.dispose();
     }
   };
 }
@@ -434,6 +480,11 @@ function setupGameStateListeners(): void {
         }
         break;
     }
+  });
+  
+  // Add shot state change listener to update stroke counter
+  shotSystem.addStateChangeListener((prevState, newState) => {
+    updateStrokeCounter(newState);
   });
 }
 
@@ -621,6 +672,12 @@ function handleShotStateChange(
       inputHelpDisplay.positionDisplay(displayPosition, cameraPos);
     }
   }
+  
+  // Update UI with angle information when transitioning to power selection
+  if (uiCoordinator && newState === ShotState.POWER && params && params.angle) {
+    const angle = Math.atan2(params.angle.y, params.angle.x);
+    uiCoordinator.updateAimAngle(angle);
+  }
 }
 
 /**
@@ -667,10 +724,22 @@ function updateCameraStateForGameState(state: GameState): void {
  * Set the game state and handle transitions
  */
 function setGameState(newState: GameState): void {
-  if (gameState === newState) return;
+  // Store previous state
+  const prevState = gameState;
   
+  // Skip if state hasn't changed
+  if (prevState === newState) return;
+  
+  console.log(`Game state changing from ${prevState} to ${newState}`);
+  
+  // Update state
   previousGameState = gameState;
   gameState = newState;
+  
+  // Update UI manager with new game state
+  if (uiManager) {
+    uiManager.updateGameState(newState);
+  }
   
   // Sync shot system with the new game state
   if (shotSystem) {
@@ -679,8 +748,6 @@ function setGameState(newState: GameState): void {
   
   // Update camera based on the new state
   updateCameraStateForGameState(newState);
-  
-  console.log(`Game state changed from ${previousGameState} to ${gameState}`);
 }
 
 /**
@@ -706,8 +773,8 @@ function startAnimationLoop() {
     // Update physics world
     world.step();
     
-    // Update the test environment
-    testEnvironment.update();
+    // Update the course test
+    courseTest.update(deltaTime);
     
     // Update the ball test
     ballTest.update(deltaTime);
@@ -769,6 +836,17 @@ function startAnimationLoop() {
       shotResultsSystem.update(deltaTime);
     }
     
+    // Update UI manager
+    if (uiManager) {
+      uiManager.update(deltaTime);
+    }
+    
+    // Update game based on state
+    if (gameState === GameState.AIMING) {
+      // Update aiming UI
+      updateAimingUI(deltaTime);
+    }
+    
     // Render the scene
     renderer.render(scene, camera.getCamera());
     
@@ -804,12 +882,15 @@ function checkBallState(): void {
     setGameState(GameState.SHOT_IN_PROGRESS);
   }
   
-  // Check for out of bounds (example boundary: outside of -50 to 50 on x and z)
+  // Get course boundaries
+  const boundaries = courseTest.getCourse().getBoundaries();
+  
+  // Check for out of bounds using course boundaries
   if (gameState === GameState.SHOT_IN_PROGRESS || gameState === GameState.BALL_AT_REST) {
     const isOutOfBounds = 
-      position.x < -50 || position.x > 50 || 
-      position.z < -50 || position.z > 50 ||
-      position.y < -10; // Fell through the floor
+      position.x < boundaries.minX || position.x > boundaries.maxX || 
+      position.z < boundaries.minZ || position.z > boundaries.maxZ ||
+      position.y < boundaries.minY; // Fell below minimum height
       
     if (isOutOfBounds) {
       handleOutOfBounds();
@@ -840,17 +921,34 @@ function setupLighting(): void {
   scene.add(directionalLight);
 }
 
+/**
+ * Create physics objects for test purposes
+ */
 function createPhysicsObject(position: THREE.Vector3, isBox: boolean): void {
   if (isBox) {
     // Create a random sized cube
     const size = 0.3 + Math.random() * 0.5;
     const color = Math.random() * 0xffffff;
-    testEnvironment.createCube(position, new THREE.Vector3(size, size, size), color);
+    // Create a cube directly 
+    const geometry = new THREE.BoxGeometry(size * 2, size * 2, size * 2);
+    const material = new THREE.MeshStandardMaterial({ color });
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.copy(position);
+    cube.castShadow = true;
+    cube.receiveShadow = true;
+    scene.add(cube);
   } else {
     // Create a random sized sphere
     const radius = 0.3 + Math.random() * 0.5;
     const color = Math.random() * 0xffffff;
-    testEnvironment.createSphere(position, radius, color);
+    // Create a sphere directly
+    const geometry = new THREE.SphereGeometry(radius, 32, 32);
+    const material = new THREE.MeshStandardMaterial({ color });
+    const sphere = new THREE.Mesh(geometry, material);
+    sphere.position.copy(position);
+    sphere.castShadow = true;
+    sphere.receiveShadow = true;
+    scene.add(sphere);
   }
 }
 
@@ -1004,5 +1102,38 @@ function recoverBall(): void {
         setGameState(GameState.AIMING);
       }, 1000);
     }
+  }
+}
+
+// Add this function to update angle during aiming
+function updateAimingUI(deltaTime: number): void {
+  if (!aimingSystem || !uiCoordinator || gameState !== GameState.AIMING) return;
+  
+  // We need to get the current angle from AimingSystem
+  // Since getAimDirection doesn't exist, we can use the ShotParameters from the shotSystem
+  const shotSystem = aimingSystem['shotSystem']; // Access internal reference
+  if (shotSystem) {
+    const params = shotSystem.getShotParameters();
+    if (params && params.angle) {
+      const angle = Math.atan2(params.angle.y, params.angle.x);
+      uiCoordinator.updateAimAngle(angle);
+    }
+  }
+}
+
+// Add this function to update the stroke counter when a shot is executed
+function updateStrokeCounter(shotState: ShotState): void {
+  if (!uiCoordinator) return;
+  
+  if (shotState === ShotState.EXECUTING) {
+    // Stroke counter UI will already be updated through UI Manager's shot state change event
+    // But we can add game-specific logic here, such as updating par values
+    
+    // Get the stroke counter from UI Coordinator
+    const strokeCounter = uiCoordinator.getStrokeCounter();
+    
+    // For now we just use a fixed par value of 3
+    // In a more complete game, this would be set based on the current hole/level
+    strokeCounter.setPar(3);
   }
 } 
