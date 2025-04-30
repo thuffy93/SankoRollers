@@ -16,6 +16,7 @@ interface InputState {
   angle: number;       // Angle for shots (in radians)
   spinning: boolean;   // Whether the player is adding spin
   spinDirection: { x: number; y: number }; // Direction of spin
+  hitPosition: { x: number; y: number }; // Added for precise hit position like in Kirby's Dream Course
 }
 
 /**
@@ -154,7 +155,8 @@ export class ShotController {
       power: 0,
       angle: 0,
       spinning: false,
-      spinDirection: { x: 0, y: 0 }
+      spinDirection: { x: 0, y: 0 },
+      hitPosition: { x: 0, y: 0 }
     };
     
     // Track key states
@@ -284,11 +286,10 @@ export class ShotController {
     
     // Update power meter in CHARGING state
     if (currentState === GameState.CHARGING) {
-      // Increase power while space is held
-      this.inputState.power = Math.min(
-        PhysicsConfig.shot.maxPower, 
-        this.inputState.power + 1
-      );
+      // Replace continuous power increase with oscillation
+      const oscillationSpeed = 0.05;
+      const time = Date.now() / 10;
+      this.inputState.power = 50 + 50 * Math.sin(time * oscillationSpeed);
       
       eventsManager.publish(EventType.POWER_CHANGED, { power: this.inputState.power });
       
@@ -305,11 +306,17 @@ export class ShotController {
         eventsManager.publish(EventType.ANGLE_CHANGED, { angle: this.inputState.angle });
       }
       
-      // Handle spin input
+      // Handle spin input and hit position adjustment
       this.inputState.spinning = this.keyState['KeyB'] || false;
       if (this.inputState.spinning) {
         this.inputState.spinDirection.x = this.keyState['ArrowLeft'] ? -1 : this.keyState['ArrowRight'] ? 1 : 0;
         this.inputState.spinDirection.y = this.keyState['ArrowUp'] ? 1 : this.keyState['ArrowDown'] ? -1 : 0;
+        
+        // Publish spin update event for UI
+        eventsManager.publish(EventType.SPIN_UPDATED, { 
+          spinning: true, 
+          spinDirection: this.inputState.spinDirection 
+        });
       }
     }
     
@@ -358,9 +365,23 @@ export class ShotController {
     const directionX = Math.cos(this.inputState.angle);
     const directionZ = Math.sin(this.inputState.angle);
     
-    // Apply impulse to the ball
+    // Apply hit position offset (Kirby's Dream Course style)
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    if (this.inputState.spinning) {
+      // Use spin direction as the hit position offset
+      offsetX = this.inputState.spinDirection.x * 0.5; 
+      offsetY = this.inputState.spinDirection.y * 0.5;
+    }
+    
+    // Calculate adjusted direction based on hit position
+    const adjustedDirX = directionX + offsetX * 0.2;
+    const adjustedDirZ = directionZ + offsetY * 0.2;
+    
+    // Apply impulse to the ball with adjusted direction
     this.playerBallBody.applyImpulse(
-      { x: directionX * force, y: 0.1 * force, z: directionZ * force },
+      { x: adjustedDirX * force, y: 0.1 * force, z: adjustedDirZ * force },
       true
     );
     

@@ -1,3 +1,4 @@
+// src/utils/events.ts
 /**
  * Events system for Cosmic Rollers using a pub/sub pattern
  */
@@ -18,8 +19,13 @@ export enum EventType {
   WALL_CLING_START = 'WALL_CLING_START',
   WALL_CLING_END = 'WALL_CLING_END',
   TARGET_HIT = 'TARGET_HIT',
+  GOAL_REACHED = 'GOAL_REACHED',
   HOLE_COMPLETE = 'HOLE_COMPLETE',
+  GAME_COMPLETE = 'GAME_COMPLETE',
+  COURSE_LOADED = 'COURSE_LOADED',
   DEBUG_INFO_UPDATE = 'DEBUG_INFO_UPDATE',
+  SHOW_MESSAGE = 'SHOW_MESSAGE', // For displaying messages to the player
+  RESET_GAME = 'RESET_GAME' // For resetting the game
 }
 
 // Event payload type
@@ -73,7 +79,26 @@ export class EventsManager {
   public clear(): void {
     this.subscribers.clear();
   }
+
+  /**
+   * Get all subscribers for an event
+   * @param eventType The event to get subscribers for
+   * @returns Array of callbacks
+   */
+  public getSubscribers(eventType: EventType): EventCallback[] {
+    return this.subscribers.get(eventType) || [];
+  }
+
+  /**
+   * Check if an event has subscribers
+   * @param eventType The event to check
+   * @returns True if the event has subscribers
+   */
+  public hasSubscribers(eventType: EventType): boolean {
+    const callbacks = this.subscribers.get(eventType) || [];
+    return callbacks.length > 0;
+  }
 }
 
 // Create and export a singleton instance
-export const eventsManager = new EventsManager(); 
+export const eventsManager = new EventsManager();

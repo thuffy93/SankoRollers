@@ -1,56 +1,62 @@
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .power-meter {
+    width: 20px;
+    height: 150px;
+  }
+  
+  .angle-arrow {
+    width: 80px;
+    height: 8px;
+    top: -80px;
+  }
+  
+  .game-info {
+    font-size: 16px;
+    padding: 10px;
+  }
+  
+  #game-message {
+    font-size: 20px;
+    padding: 15px 20px;
+  }
+  
+  .controls-help {
+    font-size: 12px;
+  }
+
+  .reset-button {
+    font-size: 14px;
+    padding: 8px 12px;
+  }
+}/* src/styles/Game.css */
+
 .game-container {
+  width: 100%;
+  height: 100%;
   position: relative;
-  width: 100vw;
-  height: 100vh;
   overflow: hidden;
 }
 
-#gameCanvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-.loading-screen {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-color: #000;
-  color: #fff;
-  font-size: 24px;
-  z-index: 2;
-}
-
-/* Shot UI elements */
+/* UI Elements */
 .power-meter {
   position: absolute;
-  top: 50%;
-  right: 30px;
-  transform: translateY(-50%);
+  top: 20px;
+  right: 20px;
   width: 30px;
   height: 200px;
   background-color: rgba(0, 0, 0, 0.3);
   border-radius: 15px;
   overflow: hidden;
-  z-index: 10;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border: 2px solid #fff;
 }
 
 .power-level {
   position: absolute;
   bottom: 0;
-  left: 0;
   width: 100%;
-  height: 0%; /* Updated dynamically */
-  background-color: #33cc33; /* Green by default, changes with power level */
+  height: 0%;
+  background-color: #33cc33;
   transition: height 0.05s ease-out;
 }
 
@@ -58,22 +64,130 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 140px;
-  height: 140px;
-  transform: translate(-50%, -50%);
-  z-index: 10;
-  pointer-events: none; /* Don't block mouse events */
+  width: 0;
+  height: 0;
 }
 
 .angle-arrow {
   position: absolute;
+  top: -100px;
+  left: 0;
+  width: 100px;
+  height: 10px;
+  background-color: #ffff00;
+  transform-origin: 0% 50%;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(255, 255, 0, 0.8);
+}
+
+.game-info {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 15px;
+  border-radius: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 18px;
+  min-width: 150px;
+}
+
+.game-info div {
+  margin: 5px 0;
+}
+
+.game-info .complete {
+  color: #ffcc00;
+  font-weight: bold;
+  font-size: 20px;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* Game message */
+#game-message {
+  position: absolute;
   top: 50%;
   left: 50%;
-  width: 120px;
-  height: 20px;
-  background-color: rgba(255, 255, 255, 0.7);
-  transform-origin: 0% 50%;
-  transform: translateY(-50%); /* Dynamic rotation added via JS */
-  clip-path: polygon(0% 0%, 80% 0%, 80% 30%, 100% 50%, 80% 70%, 80% 100%, 0% 100%);
-  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
-} 
+  transform: translate(-50%, -50%);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 20px 30px;
+  border-radius: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 24px;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.3s ease-in-out;
+  pointer-events: none;
+  max-width: 80%;
+}
+
+#game-message.show {
+  opacity: 1;
+}
+
+/* Controls help */
+.controls-help {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+.controls-help div {
+  margin: 3px 0;
+}
+
+/* Target hit animation */
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.7; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.hit-effect {
+  animation: pulse 0.5s ease-in-out;
+}
+
+/* Hole completion animation */
+@keyframes celebrate {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.complete-effect {
+  animation: celebrate 0.7s ease-in-out infinite;
+}
+
+/* Reset Button */
+.reset-button {
+  position: absolute;
+  top: 20px;
+  right: 70px;
+  background-color: rgba(255, 69, 0, 0.8); /* Orangish red */
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.reset-button:hover {
+  background-color: rgba(255, 99, 71, 0.9); /* Lighter orangish red */
+  transform: scale(1.05);
+}
+
+.reset-button:active {
+  transform: scale(0.95);
+}
