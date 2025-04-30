@@ -6,6 +6,7 @@ import {
 } from './PhysicsSystem';
 import { createRenderer } from './RenderSystem';
 import { TestEnvironment } from '../components/TestEnvironment';
+import { BallTest } from '../components/BallTest';
 import { DebugRenderer } from './DebugRenderer';
 
 let animationFrameId: number;
@@ -14,7 +15,9 @@ let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let world: RAPIER.World;
 let testEnvironment: TestEnvironment;
+let ballTest: BallTest;
 let debugRenderer: DebugRenderer;
+let lastTime: number = 0;
 
 export async function initializeGame(container: HTMLDivElement): Promise<() => void> {
   // Wait for Rapier to initialize
@@ -43,6 +46,10 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
   testEnvironment = new TestEnvironment(scene, world);
   testEnvironment.initialize();
   
+  // Create ball test
+  ballTest = new BallTest(scene, world);
+  ballTest.initialize();
+  
   // Initialize debug renderer
   debugRenderer = new DebugRenderer(
     scene, 
@@ -51,6 +58,7 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
   );
 
   // Start the animation loop
+  lastTime = performance.now();
   startAnimationLoop();
 
   // Set up resize handler
@@ -74,6 +82,7 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     
     // Dispose resources
     debugRenderer.dispose();
+    ballTest.dispose();
     testEnvironment.dispose();
     
     // Remove event listeners
@@ -130,12 +139,19 @@ function setupLighting(): void {
 }
 
 function startAnimationLoop() {
-  const animate = () => {
+  const animate = (time: number) => {
+    // Calculate deltaTime in seconds
+    const deltaTime = (time - lastTime) / 1000;
+    lastTime = time;
+    
     // Step the physics world
     world.step();
     
     // Update test environment
     testEnvironment.update();
+    
+    // Update ball test with delta time
+    ballTest.update(deltaTime);
     
     // Update debug visualization
     debugRenderer.update();
@@ -147,5 +163,5 @@ function startAnimationLoop() {
     animationFrameId = requestAnimationFrame(animate);
   };
   
-  animate();
+  animationFrameId = requestAnimationFrame(animate);
 } 

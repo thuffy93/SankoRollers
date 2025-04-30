@@ -229,4 +229,94 @@ export function applyImpulse(
   };
   
   body.applyImpulse(impulse, true);
+}
+
+/**
+ * Apply a continuous force to a rigid body
+ */
+export function applyForce(
+  body: RAPIER.RigidBody,
+  force: THREE.Vector3
+): void {
+  const forceVector = {
+    x: force.x,
+    y: force.y,
+    z: force.z
+  };
+  
+  // Rapier3D-compat uses addForce instead of applyForce
+  body.addForce(forceVector, true);
+}
+
+/**
+ * Set the linear velocity of a rigid body directly
+ */
+export function setLinearVelocity(
+  body: RAPIER.RigidBody,
+  velocity: THREE.Vector3
+): void {
+  body.setLinvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
+}
+
+/**
+ * Set the angular velocity of a rigid body directly
+ */
+export function setAngularVelocity(
+  body: RAPIER.RigidBody,
+  velocity: THREE.Vector3
+): void {
+  body.setAngvel({ x: velocity.x, y: velocity.y, z: velocity.z }, true);
+}
+
+/**
+ * Reset the velocities of a rigid body to zero
+ */
+export function stopBody(body: RAPIER.RigidBody): void {
+  // Reset linear velocity
+  setLinearVelocity(body, new THREE.Vector3(0, 0, 0));
+  
+  // Reset angular velocity
+  setAngularVelocity(body, new THREE.Vector3(0, 0, 0));
+}
+
+/**
+ * Reset a rigid body to a specific position with zero velocity
+ */
+export function resetBody(
+  body: RAPIER.RigidBody,
+  position: THREE.Vector3
+): void {
+  // Set the position
+  body.setTranslation({ x: position.x, y: position.y, z: position.z }, true);
+  
+  // Reset velocities
+  stopBody(body);
+}
+
+/**
+ * Check if a rigid body is moving (has non-zero linear or angular velocity)
+ */
+export function isBodyMoving(
+  body: RAPIER.RigidBody,
+  threshold: number = 0.01
+): boolean {
+  const linvel = body.linvel();
+  const angvel = body.angvel();
+  
+  // Calculate the magnitude of linear velocity
+  const linvelMag = Math.sqrt(
+    linvel.x * linvel.x + 
+    linvel.y * linvel.y + 
+    linvel.z * linvel.z
+  );
+  
+  // Calculate the magnitude of angular velocity
+  const angvelMag = Math.sqrt(
+    angvel.x * angvel.x + 
+    angvel.y * angvel.y + 
+    angvel.z * angvel.z
+  );
+  
+  // Check if either linear or angular velocity is above the threshold
+  return linvelMag > threshold || angvelMag > threshold;
 } 
