@@ -13,6 +13,177 @@ export interface PhysicsObjectData {
 let isRapierInitialized = false;
 
 /**
+ * Physics system to handle Rapier physics integration
+ */
+export class PhysicsSystem {
+  private world: RAPIER.World;
+  private bodies: RAPIER.RigidBody[] = [];
+  private debug: boolean = false;
+  private initialized: boolean = false;
+  
+  /**
+   * Create a new physics system
+   */
+  constructor() {
+    this.world = createPhysicsWorld();
+  }
+  
+  /**
+   * Initialize the physics system
+   */
+  async init(): Promise<void> {
+    if (!this.initialized) {
+      await initRapier();
+      this.initialized = true;
+    }
+  }
+  
+  /**
+   * Get the physics world
+   */
+  getWorld(): RAPIER.World {
+    return this.world;
+  }
+  
+  /**
+   * Update the physics world
+   * @param deltaTime Time since last frame in seconds
+   */
+  update(deltaTime: number): void {
+    // Step the physics world
+    this.world.step();
+    
+    // Sync meshes with physics bodies
+    syncMeshesToPhysics(this.bodies);
+  }
+  
+  /**
+   * Create a dynamic rigid body
+   * @param position Position of the body
+   * @param userData User data to attach to the body
+   */
+  createDynamicBody(
+    position: THREE.Vector3,
+    userData?: PhysicsObjectData
+  ): RAPIER.RigidBody {
+    const body = createDynamicBody(this.world, position, userData);
+    this.bodies.push(body);
+    return body;
+  }
+  
+  /**
+   * Create a static rigid body
+   * @param position Position of the body
+   * @param userData User data to attach to the body
+   */
+  createStaticBody(
+    position: THREE.Vector3,
+    userData?: PhysicsObjectData
+  ): RAPIER.RigidBody {
+    const body = createStaticBody(this.world, position, userData);
+    this.bodies.push(body);
+    return body;
+  }
+  
+  /**
+   * Create a kinematic rigid body
+   * @param position Position of the body
+   * @param userData User data to attach to the body
+   */
+  createKinematicBody(
+    position: THREE.Vector3,
+    userData?: PhysicsObjectData
+  ): RAPIER.RigidBody {
+    const body = createKinematicBody(this.world, position, userData);
+    this.bodies.push(body);
+    return body;
+  }
+  
+  /**
+   * Add a sphere collider to a rigid body
+   * @param body The rigid body
+   * @param radius Radius of the sphere
+   * @param options Collider options
+   */
+  addSphereCollider(
+    body: RAPIER.RigidBody,
+    radius: number,
+    options?: {
+      restitution?: number;
+      friction?: number;
+      density?: number;
+      isSensor?: boolean;
+    }
+  ): RAPIER.Collider {
+    return addSphereCollider(this.world, body, radius, options);
+  }
+  
+  /**
+   * Add a box collider to a rigid body
+   * @param body The rigid body
+   * @param halfExtents Half extents of the box
+   * @param options Collider options
+   */
+  addBoxCollider(
+    body: RAPIER.RigidBody,
+    halfExtents: { x: number; y: number; z: number },
+    options?: {
+      restitution?: number;
+      friction?: number;
+      density?: number;
+      isSensor?: boolean;
+    }
+  ): RAPIER.Collider {
+    return addBoxCollider(this.world, body, halfExtents, options);
+  }
+  
+  /**
+   * Remove a rigid body from the world
+   * @param body The rigid body to remove
+   */
+  removeRigidBody(body: RAPIER.RigidBody): void {
+    const index = this.bodies.indexOf(body);
+    if (index !== -1) {
+      this.bodies.splice(index, 1);
+    }
+    this.world.removeRigidBody(body);
+  }
+  
+  /**
+   * Apply an impulse to a rigid body
+   * @param body The rigid body
+   * @param direction Direction of the impulse
+   * @param power Strength of the impulse
+   */
+  applyImpulse(
+    body: RAPIER.RigidBody,
+    direction: THREE.Vector3,
+    power: number
+  ): void {
+    applyImpulse(body, direction, power);
+  }
+  
+  /**
+   * Enable or disable debug visualization
+   * @param enabled Whether debug visualization should be enabled
+   */
+  setDebug(enabled: boolean): void {
+    this.debug = enabled;
+  }
+  
+  /**
+   * Clean up resources
+   */
+  dispose(): void {
+    // Remove all bodies
+    this.bodies.forEach(body => {
+      this.world.removeRigidBody(body);
+    });
+    this.bodies = [];
+  }
+}
+
+/**
  * Initialize Rapier physics engine
  */
 export async function initRapier(): Promise<void> {

@@ -1,0 +1,143 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# UI Component Lifecycle & Safe Initialization
+
+- **Safe Initialization Sequence**
+  - Always initialize properties before first use
+  - Follow a consistent initialization order to prevent race conditions
+  - Use a defined initialization method rather than relying on constructor-only initialization
+  
+  ```typescript
+  // ✅ DO: Use explicit initialization method
+  class UIComponent {
+    private isInitialized: boolean = false;
+    private elements: Map<string, HTMLElement> = new Map();
+    
+    constructor(container: HTMLElement) {
+      this.initialize(container);
+    }
+    
+    protected initialize(container: HTMLElement): void {
+      // Create elements
+      const element = this.createElement('div', 'class-name');
+      this.elements.set('key', element);
+      
+      // Mark as initialized at the end
+      this.isInitialized = true;
+    }
+    
+    private createElement(tag: string, className?: string): HTMLElement {
+      // Safe creation logic
+      return document.createElement(tag);
+    }
+  }
+  
+  // ❌ DON'T: Mix initialization across different methods without coordination
+  class PoorlyInitializedComponent {
+    constructor(container: HTMLElement) {
+      this.createFirstElements(container); // Creates some elements
+      this.setupListeners(); // May access elements not yet created
+    }
+    
+    private createFirstElements(container: HTMLElement): void { /* ... */ }
+    private setupListeners(): void { /* Might access uninitialized elements */ }
+  }
+  ```
+
+- **State Checks Before Operations**
+  - Verify component state before performing operations
+  - Add guard clauses at the beginning of methods that depend on initialization
+  
+  ```typescript
+  // ✅ DO: Check initialization state
+  public updateDisplay(): void {
+    if (!this.isInitialized || !this.elements.has('counter')) {
+      console.warn('Cannot update display: component not fully initialized');
+      return;
+    }
+    
+    const counter = this.elements.get('counter');
+    counter.textContent = this.value.toString();
+  }
+  
+  // ❌ DON'T: Assume initialization is complete
+  public updateWithoutChecks(): void {
+    this.counterElement.textContent = this.value.toString(); // May throw if not initialized
+  }
+  ```
+
+- **Non-Nullable Property Declarations**
+  - Use the definite assignment assertion (`!:`) only when you're certain of initialization
+  - Prefer initialization with default values over the non-null assertion
+  
+  ```typescript
+  // ✅ DO: Initialize on declaration when possible
+  private counterValue: number = 0;
+  
+  // ✅ DO: Use proper typing for potentially undefined properties
+  private counterElement: HTMLElement | undefined;
+  
+  // ✅ DO: Check before using properties that might be undefined
+  private updateCounterDisplay(): void {
+    if (this.counterElement) {
+      this.counterElement.textContent = this.counterValue.toString();
+    }
+  }
+  
+  // ❌ DON'T: Use non-null assertion without guarantee
+  private counterElement!: HTMLElement; // Dangerous if not properly initialized
+  ```
+
+- **Robust Event Handlers**
+  - Ensure event handlers are bound properly and self-contained
+  - Check for required state within handlers
+  
+  ```typescript
+  // ✅ DO: Make event handlers robust
+  private handleClick = (event: MouseEvent): void => {
+    // Check component state
+    if (!this.isActive || !this.counterElement) {
+      return;
+    }
+    
+    // Proceed with guaranteed state
+    this.increment();
+    this.updateCounterDisplay();
+  }
+  
+  // ❌ DON'T: Assume state in handlers
+  private handleClickUnsafe = (event: MouseEvent): void => {
+    this.increment();
+    this.counterElement.textContent = this.counterValue.toString(); // May fail
+  }
+  ```
+
+- **Explicit Cleanup**
+  - Always implement dispose/cleanup methods for UI components
+  - Remove event listeners and clear references to DOM elements
+  
+  ```typescript
+  // ✅ DO: Implement proper cleanup
+  public dispose(): void {
+    // Remove event listeners
+    if (this.boundHandleClick) {
+      document.removeEventListener('click', this.boundHandleClick);
+    }
+    
+    // Clear element references
+    this.elements.clear();
+    this.counterElement = undefined;
+    
+    // Mark as not initialized
+    this.isInitialized = false;
+  }
+  
+  // ❌ DON'T: Leave listeners and references active
+  public poorDispose(): void {
+    // Missing removal of event listeners - memory leak!
+    // Missing clearing of references - potential for errors if accessed later
+  }
+  ```
