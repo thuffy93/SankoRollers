@@ -1,0 +1,32 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+description: Ensure module imports are correctly resolved
+globs: src//.tsx, src//.ts
+alwaysApply: true
+
+Verify module imports with TypeScript
+Check module paths against the file system
+Ensure tsconfig.json has proper path resolution settings
+Use absolute imports from root paths when appropriate
+
+  // ❌ DON'T: Use relative imports that TypeScript can't resolve
+  import { createRenderer } from './RenderSystem'; // Error if path resolution fails
+  
+  // ✅ DO: Use absolute imports from configured paths
+  import { createRenderer } from 'systems/RenderSystem'; // If configured in tsconfig.json
+  // OR
+  import { createRenderer } from '../systems/RenderSystem'; // Verify relative path is correct
+
+    // In tsconfig.json
+  {
+    "compilerOptions": {
+      "baseUrl": ".",
+      "paths": {
+        "@components/*": ["src/components/*"],
+        "@systems/*": ["src/systems/*"]
+      }
+    }
+  }

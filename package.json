@@ -22,11 +22,13 @@
   "homepage": "https://github.com/thuffy93/SankoRollers#readme",
   "devDependencies": {
     "@dimforge/rapier3d-compat": "^0.11.2",
+    "@types/dat.gui": "^0.7.13",
     "@types/node": "^22.15.3",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/three": "^0.176.0",
     "css-loader": "^7.1.2",
+    "dat.gui": "^0.7.9",
     "style-loader": "^4.0.0",
     "three": "^0.176.0",
     "ts-loader": "^9.5.2",
