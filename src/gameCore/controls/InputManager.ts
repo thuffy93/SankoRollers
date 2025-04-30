@@ -4,6 +4,7 @@ import { InputDevice, InputState } from './types';
 
 /**
  * Handles all user input across different input devices
+ * Enhanced to better match Kirby's Dream Course control scheme
  */
 export class InputManager {
   private keyState: { [key: string]: boolean } = {};
@@ -15,6 +16,13 @@ export class InputManager {
   };
   private activeDevice: InputDevice = InputDevice.KEYBOARD;
   private debugMode: boolean = false;
+  
+  // Kirby's Dream Course style input parameters
+  private angleChangeSpeed: number = 0.03; // Speed of angle change
+  private powerIncreasing: boolean = true; // Power direction
+  private powerChangeSpeed: number = 2; // Speed of power oscillation
+  private hitPosition: { x: number, y: number } = { x: 0, y: 0 }; // Hit position offset
+  private spinStrength: number = 0; // Spin strength (0-1)
 
   constructor() {
     this.setupEventListeners();
@@ -45,7 +53,7 @@ export class InputManager {
   }
 
   /**
-   * Handle keydown events
+   * Handle keydown events with Kirby's Dream Course controls
    */
   private handleKeyDown(event: KeyboardEvent): void {
     this.keyState[event.code] = true;
@@ -54,18 +62,20 @@ export class InputManager {
     const currentState = gameStateManager.getState();
     
     if (currentState === GameState.IDLE) {
-      // Start aiming with space
+      // Start aiming with space (A button in Dream Course)
       if (event.code === 'Space') {
         gameStateManager.setState(GameState.AIMING);
       }
     }
     else if (currentState === GameState.AIMING) {
-      // Start charging with space
+      // Start charging with space (A button in Dream Course)
       if (event.code === 'Space') {
+        this.powerIncreasing = true; // Start with increasing power
+        this.inputState.power = 0; // Reset power when starting charge
         gameStateManager.setState(GameState.CHARGING);
       }
     }
-    // Handle mid-shot bounce during ROLLING state
+    // Handle mid-shot bounce during ROLLING state (B button in Dream Course)
     else if (currentState === GameState.ROLLING && event.code === 'KeyZ') {
       eventsManager.publish(EventType.SHOT_BOUNCE_REQUESTED, {});
     }
@@ -82,27 +92,30 @@ export class InputManager {
       eventsManager.publish(EventType.SHOT_EXECUTE, { 
         power: this.inputState.power,
         angle: this.inputState.angle,
-        spin: this.inputState.spinning ? this.inputState.spinDirection : null
+        spin: this.inputState.spinning ? this.inputState.spinDirection : null,
+        hitPosition: this.hitPosition
       });
     }
   }
 
   /**
    * Update input state based on current inputs
+   * Enhanced with Kirby's Dream Course style controls
    */
   public update(): void {
     const currentState = gameStateManager.getState();
     
-    // Update angle in AIMING state
-    if (currentState === GameState.AIMING) {
+    // Update angle in AIMING or CHARGING states (can adjust in both like in Dream Course)
+    if (currentState === GameState.AIMING || currentState === GameState.CHARGING) {
       let angleChanged = false;
       
+      // Angle adjustment (D-pad left/right in Dream Course)
       if (this.keyState['ArrowLeft']) {
-        this.inputState.angle -= 0.02;
+        this.inputState.angle -= this.angleChangeSpeed;
         angleChanged = true;
       }
       if (this.keyState['ArrowRight']) {
-        this.inputState.angle += 0.02;
+        this.inputState.angle += this.angleChangeSpeed;
         angleChanged = true;
       }
       
@@ -111,48 +124,32 @@ export class InputManager {
         eventsManager.publish(EventType.ANGLE_CHANGED, { angle: this.inputState.angle });
       }
       
-      // Handle spin input
+      // Handle spin and hit position (B + D-pad in Dream Course)
       this.inputState.spinning = this.keyState['KeyB'] || false;
       if (this.inputState.spinning) {
+        // Set spin direction and hit position together
         this.inputState.spinDirection.x = this.keyState['ArrowLeft'] ? -1 : this.keyState['ArrowRight'] ? 1 : 0;
         this.inputState.spinDirection.y = this.keyState['ArrowUp'] ? 1 : this.keyState['ArrowDown'] ? -1 : 0;
         
+        // Update hit position based on the same directional input (Kirby-style)
+        this.hitPosition = {
+          x: this.inputState.spinDirection.x * 0.3, // Scale factor
+          y: this.inputState.spinDirection.y * 0.3
+        };
+        
+        // Set spin strength based on how long B has been held
+        this.spinStrength = Math.min(1.0, this.spinStrength + 0.05);
+        
         eventsManager.publish(EventType.SPIN_UPDATED, { 
           spinning: true,
-          direction: this.inputState.spinDirection 
+          direction: this.inputState.spinDirection,
+          strength: this.spinStrength,
+          hitPosition: this.hitPosition
         });
+      } else {
+        // Reset spin strength when not holding B
+        this.spinStrength = 0;
       }
     }
-    
-    // Update power meter in CHARGING state
-    if (currentState === GameState.CHARGING) {
-      // Oscillate power between 0-100
-      const time = Date.now() / 10;
-      const oscillationSpeed = 0.05;
-      this.inputState.power = 50 + 50 * Math.sin(time * oscillationSpeed);
-      
-      eventsManager.publish(EventType.POWER_CHANGED, { power: this.inputState.power });
-    }
   }
-
-  /**
-   * Get current input state
-   */
-  public getInputState(): InputState {
-    return { ...this.inputState };
-  }
-
-  /**
-   * Get debug mode state
-   */
-  public isDebugMode(): boolean {
-    return this.debugMode;
-  }
-  
-  /**
-   * Check if a specific key is pressed
-   */
-  public isKeyPressed(keyCode: string): boolean {
-    return !!this.keyState[keyCode];
-  }
-} 
+}

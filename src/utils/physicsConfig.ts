@@ -1,63 +1,88 @@
 /**
  * Physics configuration for Cosmic Rollers
- * Centralized place to adjust physics parameters
+ * Enhanced with Kirby's Dream Course-like physics values
  */
 
 export const PhysicsConfig = {
   // World settings
   world: {
-    gravity: { x: 0, y: -9.81, z: 0 },
+    gravity: { x: 0, y: -9.81, z: 0 }, // Standard gravity
     timeStep: 1/60,
   },
   
-  // Player ball settings
+  // Player ball settings - Adjusted for Kirby-like feel
   playerBall: {
     radius: 0.5,
     mass: 1.0,
-    friction: 0.2,
-    restitution: 0.7, // Bounciness
-    linearDamping: 0.1, // Gradual slow down
-    angularDamping: 0.2, // Spin slow down
+    friction: 0.25, // Slightly higher base friction for better control
+    restitution: 0.75, // Slightly higher bounciness (Kirby bounces a lot)
+    linearDamping: 0.12, // Slightly higher damping to simulate air resistance
+    angularDamping: 0.25, // Higher spin damping to match Kirby's behavior
     ccdEnabled: true, // Continuous collision detection
-    maxLinearVelocity: 30, // Max speed cap
+    maxLinearVelocity: 35, // Higher max speed for more dynamic shots
   },
   
-  // Terrain settings
+  // Terrain settings - Adjusted for Kirby-like surfaces
   terrain: {
-    defaultFriction: 0.3,
-    iceFriction: 0.05,
-    sandFriction: 0.8,
-    bouncePadRestitution: 1.2,
+    defaultFriction: 0.35, // Slightly higher default friction
+    iceFriction: 0.02, // Very low friction for ice (Kirby slides a lot)
+    sandFriction: 0.9, // Higher friction for sand traps
+    bouncePadRestitution: 1.5, // Very bouncy bounce pads
   },
   
-  // Shot settings
+  // Shot settings - Adjusted for Kirby-like shot mechanics
   shot: {
-    powerMultiplier: 0.2, // Convert power meter (0-100) to physics impulse
+    powerMultiplier: 0.23, // Slightly higher power for longer shots
     maxPower: 100,
-    spinMultiplier: 0.05, // For angular impulse
-    bounceImpulse: 5, // For mid-shot bounce
-    minVelocityToStop: 0.1, // When to consider the ball stopped
+    spinMultiplier: 0.07, // Stronger spin effect like in Dream Course
+    bounceImpulse: 6.5, // Stronger bounce (Kirby's B button bounce is strong)
+    minVelocityToStop: 0.12, // When to consider the ball stopped
   },
   
   // Camera settings
   camera: {
     followDistance: 15,
     followHeight: 10,
-    followLerp: 0.1, // Smoothing factor for camera follow
+    followLerp: 0.08, // Slightly smoother camera for Kirby-like feel
     aimingHeight: 15,
     aimingDistance: 20,
   },
   
-  // Wall settings
+  // Wall settings - Adjusted for Kirby-like wall clinging
   walls: {
-    clingingFriction: 0.9, // High friction for wall clinging
+    clingingFriction: 1.2, // Even higher friction for wall clinging
     normalFriction: 0.3,
   },
   
-  // Obstacle settings
+  // Obstacle settings - Adjusted for Kirby's Dream Course feel
   obstacles: {
-    bumperRestitution: 1.5, // Super bouncy bumpers
-    bouncePadImpulse: 15,
+    bumperRestitution: 1.8, // Super bouncy bumpers like in Dream Course
+    bouncePadImpulse: 18, // Stronger bounce pads
+    targetBounce: 5.0, // How much upward bounce when hitting a target
+  },
+  
+  // Kirby's Dream Course specific settings
+  kirbyStyle: {
+    // Shot mechanics
+    maxBounces: 3, // Maximum number of mid-shot bounces
+    bounceTimeout: 300, // Milliseconds between bounce attempts
+    minBounceVelocity: 0.5, // Minimum velocity required to bounce
+    maxBounceVelocity: 15, // Maximum velocity for bounce effectiveness
+    
+    // Power settings
+    powerOscillationSpeed: 2, // How fast power level oscillates
+    
+    // Camera settings
+    targetHitCameraZoom: 0.8, // Camera zoom level when hitting a target
+    goalZoomInSpeed: 0.05, // How fast camera zooms in at goal
+    
+    // Hit position settings
+    maxHitPositionOffset: 0.3, // Maximum offset for hit position adjustment
+    hitPositionImpact: 0.3, // How much hit position affects trajectory
+    
+    // Visual effects
+    targetHitEffectDuration: 1000, // Milliseconds for target hit effect
+    starBurstCount: 8, // Number of stars in burst effect
   }
 };
 
@@ -76,4 +101,8 @@ export function getTerrainPhysicsValues() {
 
 export function getCameraValues() {
   return PhysicsConfig.camera;
-} 
+}
+
+export function getKirbyStyleValues() {
+  return PhysicsConfig.kirbyStyle;
+}
