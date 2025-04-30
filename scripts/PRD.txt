@@ -1,0 +1,220 @@
+# Overview
+Cosmic Rollers is a physics-based golf game inspired by Kirby's Dream Course, built for modern web browsers. Players control a ball character navigating through colorful isometric courses, aiming to hit targets and reach a goal hole in as few shots as possible. The game combines precise physics mechanics with accessible controls, creating an experience that's easy to learn but challenging to master.
+
+# Core Features
+
+## Physics-Based Ball Movement (MVP)
+- **What**: Realistic ball physics including rolling, bouncing, and momentum
+- **Why**: The core gameplay depends on accurate, predictable physics
+- **How**: Implement using Rapier3D-compat for cross-browser compatibility, with configurable parameters for mass, friction, and restitution
+
+## Shot Control System (MVP)
+- **What**: Three-phase input system (angle, power, spin) for controlling shots
+- **Why**: Provides intuitive but deep control mechanics that reward skill
+- **How**: Visual indicators for angle selection, power meter timing, and optional spin controls
+
+## Isometric Camera (MVP)
+- **What**: Fixed-angle camera view with smooth tracking of the player ball
+- **Why**: Provides clear view of the course while maintaining the retro aesthetic
+- **How**: Three.js camera positioned at a 45-degree angle, with interpolated following
+
+## Simple Course Creation (MVP)
+- **What**: A system for building basic courses with terrain, walls, and targets
+- **Why**: Essential for gameplay testing and establishing the foundation for future procedural generation
+- **How**: Manually designed initial courses using Three.js primitives and Rapier colliders
+
+## Target Hit System (MVP)
+- **What**: Enemies/targets that transform when hit by the player ball
+- **Why**: Creates the core gameplay loop of hitting all targets before reaching the goal
+- **How**: Collision detection between ball and target objects, with visual feedback
+
+## Basic UI Elements (MVP)
+- **What**: Power meter, angle indicator, stroke counter, and minimal menus
+- **Why**: Provides essential feedback and game state information
+- **How**: Combination of HTML/CSS for menus and Three.js for in-game indicators
+
+# User Experience
+
+## User Personas
+- **Casual Gamers**: Looking for quick, fun sessions with minimal commitment
+- **Nostalgic Players**: Fans of the original Kirby's Dream Course seeking a modern version
+- **Skill-Based Gamers**: Players who enjoy mastering precise controls and optimizing play
+
+## Key User Flows
+1. **First-Time Experience**:
+   - Short tutorial explaining controls and objectives
+   - Simple starter course with clear path and minimal hazards
+   - Immediate visual feedback on successful actions
+
+2. **Core Gameplay Loop**:
+   - Survey course and plan shot
+   - Adjust angle and power
+   - Execute shot and watch results
+   - Continue until all targets are hit and goal is reached
+   - View score and proceed to next course
+
+3. **Course Progression**:
+   - Complete courses to unlock new, more challenging ones
+   - Gradual introduction of new obstacles and mechanics
+
+## UI/UX Considerations
+- Clean, minimalist HUD that doesn't obscure gameplay
+- Consistent visual language for interactive elements
+- Immediate feedback for all player actions
+- Follows Emotional Design principles (visceral appeal, behavioral usability, reflective satisfaction)
+
+# Technical Architecture
+
+## System Components
+- **Rendering Engine**: Three.js for 3D graphics and scene management
+- **Physics Engine**: Rapier3D-compat for deterministic physics with browser compatibility
+- **Input Manager**: Custom module for handling keyboard/mouse/touch inputs
+- **Game State Manager**: Tracks course progress, score, and unlocks
+- **Asset Manager**: Handles loading and caching of 3D models, textures, and audio
+- **UI System**: Combination of HTML/CSS and Three.js for menus and in-game indicators
+
+## Data Models
+- **Course**: Terrain geometry, obstacle placement, target positions, starting point, goal position
+- **Player**: Position, velocity, power, angle, equipped abilities
+- **Targets**: Position, type, collision properties
+- **Game Session**: Current course, stroke count, targets hit, session time
+
+## APIs and Integrations
+- Local storage for saving progress and settings
+- Audio API for sound effects and music
+- Optional: Analytics for gameplay metrics (phase 2)
+
+## Infrastructure Requirements
+- Static web hosting (GitHub Pages or similar)
+- Browser support: Modern browsers with WebGL support
+- Responsive design for varying screen sizes
+- Target performance: 60fps on mid-tier devices
+
+# Development Roadmap
+
+## Phase 1: Core Mechanics (MVP)
+- Three.js project setup with TypeScript
+- Rapier3D-compat physics integration
+- Basic ball movement and collision
+- Simple camera implementation
+- Shot angle and power controls
+- First playable test course with flat terrain
+- Basic collision detection for targets
+
+## Phase 2: Essential Gameplay
+- Complete target hit system with visual feedback
+- Goal hole implementation and win condition
+- Score tracking and display
+- Additional test courses with varying difficulty
+- Basic UI elements (power meter, angle indicator)
+- Camera improvements and smooth following
+- Simple menu system and course selection
+
+## Phase 3: Polish and Expansion
+- Shot spin mechanic implementation
+- Enhanced visual effects (particle systems, lighting)
+- Sound effects and background music
+- Additional obstacle types (bumpers, sand traps, water)
+- Course progression and unlocking system
+- Performance optimization
+- Mobile input support
+
+## Phase 4: Advanced Features
+- Procedural course generation
+- Power-up system implementation
+- Advanced target types with unique behaviors
+- Enhanced visual styling and themes
+- User settings and accessibility options
+- Local multiplayer mode
+
+## Phase 5: Future Enhancements
+- Blockchain integration for NFT cosmetics
+- Online leaderboards
+- Custom course editor
+- Advanced multiplayer features
+- Cross-platform deployment
+
+# Logical Dependency Chain
+
+1. **Foundation (Build First)**
+   - Three.js environment setup with basic scene rendering
+   - Rapier3D-compat physics world implementation
+   - Ball entity with basic movement controls
+   - Simple camera implementation
+
+2. **Core Gameplay**
+   - Shot control system (angle and power)
+   - Collision detection and response
+   - Target hit mechanics
+   - Basic course structure
+
+3. **Game Loop**
+   - Start/end conditions
+   - Score tracking
+   - Course completion and progression
+   - Basic UI elements
+
+4. **Polish and Playability**
+   - Visual enhancements
+   - Audio implementation
+   - Input refinement
+   - Additional courses
+
+5. **Advanced Features**
+   - Spin mechanics
+   - Power-ups
+   - Obstacle variations
+   - Enhanced visual effects
+
+# Risks and Mitigations
+
+## Technical Challenges
+- **Risk**: Physics synchronization across different browsers and devices
+  - **Mitigation**: Use Rapier3D-compat for consistent physics, implement extensive testing across platforms
+
+- **Risk**: Performance issues with complex physics and 3D rendering
+  - **Mitigation**: Implement LOD (Level of Detail) system, use instanced meshes, optimize collision shapes
+
+- **Risk**: Difficulty in creating accurate and fun shot controls
+  - **Mitigation**: Iterative prototyping with frequent playtesters, adjustable difficulty parameters
+
+## MVP Scoping
+- **Risk**: Feature creep extending development time
+  - **Mitigation**: Strict prioritization of MVP features, clear separation between phases
+
+- **Risk**: Overambitious course design making initial development complex
+  - **Mitigation**: Start with simple, flat courses and gradually add complexity
+
+- **Risk**: Balancing physics parameters for fun gameplay
+  - **Mitigation**: Create configuration system for easy tweaking of physics values
+
+## Resource Constraints
+- **Risk**: Limited 3D art resources affecting visual appeal
+  - **Mitigation**: Use procedural generation and simple geometric shapes with effective materials
+
+- **Risk**: Browser compatibility issues
+  - **Mitigation**: Target modern browsers initially, use feature detection, and provide fallbacks where possible
+
+# Appendix
+
+## Technical Specifications
+- **Rendering**: Three.js with WebGL 2.0
+- **Physics**: Rapier3D-compat (version 0.9.0 or newer)
+- **Build System**: Webpack or Vite
+- **Language**: TypeScript
+- **Asset Format**: glTF for 3D models, compressed textures for materials
+- **Minimum Requirements**: Browser with WebGL 2.0 support, 4GB RAM, dual-core CPU
+
+## Design References
+- Original Kirby's Dream Course (SNES, 1994)
+- Modern golf games with arcade elements
+- Isometric puzzle games with physics elements
+- Don Norman's Emotional Design principles
+
+## Physics Parameters (Initial Values)
+- Ball mass: 1.0
+- Ball friction: 0.2
+- Ball restitution: 0.7
+- Gravity: -9.8 y-axis
+- Linear damping: 0.1
+- Angular damping: 0.05 
