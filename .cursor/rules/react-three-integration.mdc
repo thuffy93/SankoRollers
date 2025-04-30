@@ -1,0 +1,233 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# React and Three.js Integration Best Practices
+
+- **Use Proper Initialization and Cleanup**
+  - Initialize Three.js resources in useEffect
+  - Properly dispose of all Three.js resources on component unmount
+  
+  ```typescript
+  // ✅ DO: Proper initialization and cleanup in useEffect
+  useEffect(() => {
+    // Initialize resources
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    
+    // Set up scene...
+    
+    return () => {
+      // Clean up ALL resources
+      renderer.dispose();
+      scene.traverse(object => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          if (object.material.map) object.material.map.dispose();
+          object.material.dispose();
+        }
+      });
+    };
+  }, []);
+  
+  // ❌ DON'T: Initialize without cleanup or outside useEffect
+  // Wrong: Creating Three.js objects outside useEffect
+  const renderer = new THREE.WebGLRenderer(); // Wrong: global initialization
+  
+  useEffect(() => {
+    // Missing cleanup
+    const scene = new THREE.Scene();
+    // No return cleanup function
+  }, []);
+  ```
+
+- **Handle Canvas References Correctly**
+  - Use useRef to store canvas DOM elements
+  - Verify refs are valid before accessing
+  
+  ```typescript
+  // ✅ DO: Proper ref handling with checks
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return; // Guard clause
+    
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    // Continue setup...
+    
+    return () => {
+      renderer.dispose();
+    };
+  }, []);
+  
+  return <canvas ref={canvasRef} />;
+  
+  // ❌ DON'T: Access refs without verification
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  useEffect(() => {
+    // Wrong: No check if canvasRef.current exists
+    const renderer = new THREE.WebGLRenderer({ canvas: canvasRef.current });
+  }, []);
+  ```
+
+- **Manage Resize Events Properly**
+  - Listen for window resize events
+  - Update camera aspect ratio and renderer size
+  
+  ```typescript
+  // ✅ DO: Handle resize events with proper cleanup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+    
+    const handleResize = () => {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      
+      renderer.setSize(width, height, false);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial sizing
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      renderer.dispose();
+    };
+  }, []);
+  
+  // ❌ DON'T: Forget to remove event listeners
+  useEffect(() => {
+    window.addEventListener('resize', handleResize);
+    // Wrong: Missing removeEventListener in cleanup
+  }, []);
+  ```
+
+- **Separate Game Logic from React Components**
+  - Keep React components focused on UI concerns
+  - Delegate game logic to separate classes or hooks
+  
+  ```typescript
+  // ✅ DO: Separate concerns with custom hooks
+  // useGameEngine.ts
+  function useGameEngine(canvasRef: React.RefObject<HTMLCanvasElement>) {
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const engine = new GameEngine(canvas);
+      engine.start();
+      
+      return () => engine.dispose();
+    }, [canvasRef]);
+  }
+  
+  // GameCanvas.tsx
+  function GameCanvas() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    useGameEngine(canvasRef);
+    
+    return <canvas ref={canvasRef} className="game-canvas" />;
+  }
+  
+  // ❌ DON'T: Mix complex game logic in React components
+  function GameCanvasWithEverything() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    useEffect(() => {
+      // Wrong: Too much direct game logic in component
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const renderer = new THREE.WebGLRenderer({ canvas });
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+      
+      // Physics setup...
+      // Game logic...
+      // Input handling...
+      // Too many concerns in one useEffect
+    }, []);
+    
+    return <canvas ref={canvasRef} />;
+  }
+  ```
+
+- **Handle Asynchronous Resource Loading**
+  - Use loading states for asynchronous resources
+  - Show loading indicators when needed
+  
+  ```typescript
+  // ✅ DO: Handle loading states properly
+  function GameWithLoader() {
+    const [isLoading, setIsLoading] = useState(true);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      
+      const loadResources = async () => {
+        try {
+          // Load textures, models, etc.
+          const textureLoader = new THREE.TextureLoader();
+          const texture = await new Promise<THREE.Texture>((resolve) => {
+            textureLoader.load('/texture.jpg', resolve);
+          });
+          
+          // Initialize game with loaded resources
+          const game = new GameEngine(canvas, { texture });
+          game.start();
+          
+          setIsLoading(false);
+          
+          return () => game.dispose();
+        } catch (error) {
+          console.error('Failed to load game resources:', error);
+          setIsLoading(false);
+        }
+      };
+      
+      const cleanup = loadResources();
+      return () => {
+        cleanup.then(cleanupFn => cleanupFn && cleanupFn());
+      };
+    }, []);
+    
+    return (
+      <>
+        {isLoading && <div className="loading-spinner">Loading...</div>}
+        <canvas 
+          ref={canvasRef} 
+          className="game-canvas" 
+          style={{ display: isLoading ? 'none' : 'block' }} 
+        />
+      </>
+    );
+  }
+  
+  // ❌ DON'T: Ignore loading states
+  function GameWithoutLoader() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    
+    useEffect(() => {
+      // Wrong: No handling of loading state
+      const textureLoader = new THREE.TextureLoader();
+      textureLoader.load('/texture.jpg', (texture) => {
+        // Initialize game here - but user sees nothing until loaded
+      });
+    }, []);
+    
+    return <canvas ref={canvasRef} />;
+  }
+  ```
