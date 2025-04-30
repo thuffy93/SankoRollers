@@ -1,0 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+description: Handle Promise resolution in React components safely
+globs: src/components//.tsx
+alwaysApply: true
+
+Use state to handle async operations in React
+Track component mounting state to prevent updates on unmounted components
+Store async resources in component state
+Use AbortController for cancellable operations
+
+  // ✅ DO: Track mounting state
+  useEffect(() => {
+    let isMounted = true;
+    let cleanup: (() => void) | undefined;
+    
+    const initializeAsync = async () => {
+      try {
+        const cleanupFn = await initializeGame(container);
+        if (isMounted) {
+          cleanup = cleanupFn;
+        } else {
+          // Component unmounted during async operation, run cleanup immediately
+          cleanupFn();
+        }
+      } catch (error) {
+        console.error("Failed to initialize game:", error);
+      }
+    };
+    
+    initializeAsync();
+    
+    return () => {
+      isMounted = false;
+      if (cleanup) cleanup();
+    };
+  }, []);
