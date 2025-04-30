@@ -7,7 +7,8 @@ export enum CameraState {
   IDLE = 'idle',
   AIMING = 'aiming', 
   IN_FLIGHT = 'in-flight',
-  AT_REST = 'at-rest'
+  AT_REST = 'at-rest',
+  OVERVIEW = 'overview'
 }
 
 /**
@@ -264,20 +265,24 @@ export class CameraController {
     smoothingFactor: number;
   }> = {
     [CameraState.IDLE]: {
-      offset: new THREE.Vector3(8, 8, 8),
-      smoothingFactor: 0.05
+      offset: new THREE.Vector3(10, 8, 10),
+      smoothingFactor: 0.1
     },
     [CameraState.AIMING]: {
-      offset: new THREE.Vector3(10, 12, 10), // Higher and further back for better view
-      smoothingFactor: 0.03
+      offset: new THREE.Vector3(5, 3, 5),
+      smoothingFactor: 0.15
     },
     [CameraState.IN_FLIGHT]: {
-      offset: new THREE.Vector3(6, 6, 6), // Closer to follow the action
-      smoothingFactor: 0.1 // More responsive during flight
+      offset: new THREE.Vector3(0, 5, 8),
+      smoothingFactor: 0.05
     },
     [CameraState.AT_REST]: {
-      offset: new THREE.Vector3(8, 8, 8),
-      smoothingFactor: 0.05
+      offset: new THREE.Vector3(8, 6, 8),
+      smoothingFactor: 0.1
+    },
+    [CameraState.OVERVIEW]: {
+      offset: new THREE.Vector3(0, 20, 20),
+      smoothingFactor: 0.2
     }
   };
   

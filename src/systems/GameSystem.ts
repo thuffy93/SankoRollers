@@ -1,21 +1,33 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import { Ball } from '../models/Ball';
+import { TestEnvironment } from '../components/TestEnvironment';
+import { BallTest } from '../components/BallTest';
 import { 
   createPhysicsWorld, 
   initRapier,
 } from './PhysicsSystem';
 import { createRenderer } from './RenderSystem';
-import { TestEnvironment } from '../components/TestEnvironment';
-import { BallTest } from '../components/BallTest';
 import { DebugRenderer } from './DebugRenderer';
 import { IsometricCamera, CameraController, CameraState, Easing } from './CameraSystem';
+import { ShotStateMachine, ShotState, ShotParameters } from './ShotSystem';
+import { AimingSystem } from './AimingSystem';
+import { PowerMeterSystem } from './PowerMeterSystem';
+import { SpinControlSystem } from './SpinControlSystem';
+import { InputManager } from './InputManager';
+import { InputHelpDisplay } from './InputHelpDisplay';
+import { FeedbackSystem, FeedbackType } from './FeedbackSystem';
+import { ShotResultsSystem } from './ShotResultsSystem';
 
 // Game state enum
 export enum GameState {
   IDLE = 'idle',
   AIMING = 'aiming',
   SHOT_IN_PROGRESS = 'shot-in-progress',
-  BALL_AT_REST = 'ball-at-rest'
+  BALL_AT_REST = 'ball-at-rest',
+  OUT_OF_BOUNDS = 'out-of-bounds',  // New state for out of bounds
+  RECOVERY = 'recovery',            // New state for ball recovery
+  COURSE_COMPLETE = 'course-complete' // New state for completing the course
 }
 
 let animationFrameId: number;
@@ -32,6 +44,28 @@ let lastTime: number = 0;
 // Game state tracking
 let gameState: GameState = GameState.IDLE;
 let previousGameState: GameState = GameState.IDLE;
+
+// Shot system
+let shotSystem: ShotStateMachine;
+
+// Aiming system
+let aimingSystem: AimingSystem;
+
+// Power meter system
+let powerMeterSystem: PowerMeterSystem;
+
+// Spin control system
+let spinControlSystem: SpinControlSystem;
+
+// Input systems
+let inputManager: InputManager;
+let inputHelpDisplay: InputHelpDisplay;
+
+// Feedback system
+let feedbackSystem: FeedbackSystem;
+
+// ShotResultsSystem
+let shotResultsSystem: ShotResultsSystem | null = null;
 
 // Performance monitoring
 let frameCount = 0;
@@ -71,6 +105,42 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
   // Get the ball mesh to follow with the camera
   const ball = ballTest.getBall();
   if (ball) {
+    // Initialize the shot system with the ball
+    shotSystem = new ShotStateMachine(ball);
+    
+    // Initialize the aiming system
+    aimingSystem = new AimingSystem(scene, shotSystem, ball);
+    
+    // Initialize the power meter system
+    powerMeterSystem = new PowerMeterSystem(scene, shotSystem);
+    
+    // Initialize the spin control system
+    spinControlSystem = new SpinControlSystem(scene, shotSystem);
+    
+    // Initialize input systems
+    inputManager = new InputManager();
+    inputHelpDisplay = new InputHelpDisplay(scene);
+    
+    // Set up input manager callbacks
+    setupInputManager();
+    
+    // Register a device change listener
+    inputManager.setOnDeviceChangeCallback((device) => {
+      console.log(`Active input device changed to: ${device}`);
+      inputHelpDisplay.setDevice(device);
+    });
+    
+    // Register a state change listener for the shot system
+    shotSystem.addStateChangeListener((prevState, newState, params) => {
+      handleShotStateChange(prevState, newState, params);
+      
+      // Update input manager with new state
+      inputManager.setShotState(newState);
+      
+      // Update help display with new state
+      inputHelpDisplay.setState(newState);
+    });
+    
     // Create camera controller to follow the ball
     // Use an offset that gives a good view for the isometric camera
     const cameraOffset = new THREE.Vector3(8, 8, 8);
@@ -112,6 +182,18 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     createPhysicsObject
   );
 
+  // Create feedback system instance
+  feedbackSystem = new FeedbackSystem(scene, camera);
+
+  // Create ShotResultsSystem
+  shotResultsSystem = new ShotResultsSystem(scene, camera);
+  if (ballTest) {
+    const ball = ballTest.getBall();
+    if (ball) {
+      shotResultsSystem.setBall(ball);
+    }
+  }
+
   // Start the animation loop
   lastTime = performance.now();
   lastFpsTime = lastTime;
@@ -139,6 +221,18 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     }
     
     // Dispose resources
+    if (aimingSystem) {
+      aimingSystem.dispose();
+    }
+    
+    if (powerMeterSystem) {
+      powerMeterSystem.dispose();
+    }
+    
+    if (spinControlSystem) {
+      spinControlSystem.dispose();
+    }
+    
     debugRenderer.dispose();
     ballTest.dispose();
     testEnvironment.dispose();
@@ -152,6 +246,15 @@ export async function initializeGame(container: HTMLDivElement): Promise<() => v
     // Remove renderer from DOM
     if (container.contains(renderer.domElement)) {
       container.removeChild(renderer.domElement);
+    }
+    
+    // Dispose input systems
+    if (inputManager) {
+      inputManager.dispose();
+    }
+    
+    if (inputHelpDisplay) {
+      inputHelpDisplay.dispose();
     }
   };
 }
@@ -299,46 +402,229 @@ function setupKeyboardControls(): void {
 }
 
 /**
- * Set up event listeners for game state changes to trigger camera transitions
+ * Set up event listeners for game state changes
  */
 function setupGameStateListeners(): void {
-  if (!ballTest || !cameraController) return;
+  // We'll add mock input for testing the shot system
+  // In a real game, this would be connected to user input
   
-  // Add event listeners for user input to change game state
+  // Set up key bindings for testing the shot system
   window.addEventListener('keydown', (event) => {
-    // Example: Pressing spacebar toggles between IDLE and AIMING state
-    if (event.code === 'Space') {
-      if (gameState === GameState.IDLE || gameState === GameState.BALL_AT_REST) {
-        setGameState(GameState.AIMING);
-      } else if (gameState === GameState.AIMING) {
-        // Simulate shot being taken
-        const ball = ballTest.getBall();
-        if (ball) {
-          // Apply a random impulse to simulate a shot
-          const direction = new THREE.Vector3(Math.random() - 0.5, 0.3, Math.random() - 0.5).normalize();
-          ball.applyImpulse(direction, 5.0);
-          setGameState(GameState.SHOT_IN_PROGRESS);
+    switch (event.key) {
+      case ' ': // Space to initiate a shot or continue to next phase
+        handleShotKeyInput();
+        break;
+      case 'Escape': // Escape to cancel shot
+        if (shotSystem && shotSystem.getState() !== ShotState.IDLE && 
+            shotSystem.getState() !== ShotState.EXECUTING) {
+          shotSystem.cancelShot();
         }
-      }
-    }
-    
-    // Example: 'R' key to reset the ball (for testing)
-    if (event.code === 'KeyR') {
-      const ball = ballTest.getBall();
-      if (ball) {
-        ball.reset(new THREE.Vector3(0, 5, 0));
-        setGameState(GameState.IDLE);
-      }
+        break;
+      case 'Backspace': // Backspace to go back to previous shot state
+        if (shotSystem) {
+          shotSystem.goToPreviousState();
+        }
+        break;
+      case 'Enter': // Enter to confirm the current shot phase
+        // In aiming state, confirm the aim and move to power selection
+        if (shotSystem && shotSystem.getState() === ShotState.AIMING && aimingSystem) {
+          aimingSystem.confirmAim();
+        } else if (shotSystem && shotSystem.getState() === ShotState.SPIN && spinControlSystem) {
+          spinControlSystem.confirmSpin();
+        }
+        break;
     }
   });
-  
-  // We'll check the ball's movement state in the animation loop
-  // to automatically transition to BALL_AT_REST when appropriate
 }
 
 /**
- * Update the camera state based on the game state
- * @param state The current game state
+ * Handle key input for shot control
+ */
+function handleShotKeyInput(): void {
+  if (!shotSystem) return;
+  
+  switch (shotSystem.getState()) {
+    case ShotState.IDLE:
+      // Start the shot process
+      shotSystem.enterAimingState();
+      setGameState(GameState.AIMING);
+      break;
+      
+    case ShotState.AIMING:
+      // In the real implementation, this is handled by the aiming system
+      // confirmAim() is called by the user when they're done aiming
+      break;
+      
+    case ShotState.POWER:
+      // In the real implementation, this is handled by the power meter system
+      // selectPower() is called by the user when they're done with power selection
+      if (powerMeterSystem) {
+        powerMeterSystem.selectPower();
+      }
+      break;
+      
+    case ShotState.SPIN:
+      // In the real implementation, this is handled by the spin control system
+      // confirmSpin() is called by the user when they're done with spin selection
+      if (spinControlSystem) {
+        spinControlSystem.confirmSpin();
+      }
+      break;
+  }
+}
+
+/**
+ * Handle shot state changes
+ */
+function handleShotStateChange(
+  prevState: ShotState, 
+  newState: ShotState,
+  params?: ShotParameters
+): void {
+  console.log(`Shot system state changed: ${prevState} -> ${newState}`);
+  
+  // Update game state based on shot state
+  switch (newState) {
+    case ShotState.IDLE:
+      if (gameState === GameState.SHOT_IN_PROGRESS) {
+        setGameState(GameState.BALL_AT_REST);
+        
+        // Stop tracking the shot and show results
+        if (shotResultsSystem) {
+          shotResultsSystem.stopTracking();
+        }
+        
+        // Show feedback when ball comes to rest
+        if (feedbackSystem && ballTest) {
+          const ball = ballTest.getBall();
+          if (ball) {
+            const position = ball.getPosition();
+            feedbackSystem.showFeedback(FeedbackType.BALL_STOPPED, position);
+          }
+        }
+      } else if (gameState === GameState.AIMING) {
+        setGameState(GameState.IDLE);
+      }
+      break;
+      
+    case ShotState.AIMING:
+      setGameState(GameState.AIMING);
+      break;
+      
+    case ShotState.EXECUTING:
+      setGameState(GameState.SHOT_IN_PROGRESS);
+      
+      // Start tracking the shot
+      if (shotResultsSystem && params) {
+        shotResultsSystem.startTracking(params);
+      }
+      
+      // Show shot feedback
+      if (feedbackSystem && params && ballTest) {
+        const ball = ballTest.getBall();
+        if (ball) {
+          // Get position from the ball
+          const position = ball.getPosition();
+          // Show feedback effect at the ball's position
+          feedbackSystem.showFeedback(
+            FeedbackType.SHOT_EXECUTED, 
+            position, 
+            { power: params.power, direction: new THREE.Vector3(
+              Math.sin(params.angle.x),
+              0.1,
+              Math.cos(params.angle.x)
+            )}
+          );
+        }
+      }
+      break;
+  }
+  
+  // Update camera based on the new state if needed
+  if (cameraController) {
+    // Adjust camera parameters based on shot state
+    switch (newState) {
+      case ShotState.AIMING:
+        // Move camera to a good position for aiming
+        cameraController.setStatePreset(CameraState.AIMING, {
+          offset: new THREE.Vector3(10, 8, 10),
+          smoothingFactor: 0.1
+        });
+        cameraController.transitionToState(CameraState.AIMING, 1.0, Easing.easeInOutCubic);
+        break;
+        
+      case ShotState.POWER:
+        // Position power meter in front of the camera
+        if (powerMeterSystem && camera) {
+          const cameraPos = new THREE.Vector3();
+          camera.getCamera().getWorldPosition(cameraPos);
+          
+          // Position the meter slightly in front of camera
+          const cameraDirection = new THREE.Vector3(0, 0, -1);
+          cameraDirection.applyQuaternion(camera.getCamera().quaternion);
+          
+          const meterPosition = cameraPos.clone().add(
+            cameraDirection.multiplyScalar(5) // 5 units in front of camera
+          );
+          
+          powerMeterSystem.positionMeter(meterPosition, cameraPos);
+        }
+        break;
+        
+      case ShotState.SPIN:
+        // Position spin control in front of the camera
+        if (spinControlSystem && camera) {
+          const cameraPos = new THREE.Vector3();
+          camera.getCamera().getWorldPosition(cameraPos);
+          
+          // Position the control slightly in front of camera
+          const cameraDirection = new THREE.Vector3(0, 0, -1);
+          cameraDirection.applyQuaternion(camera.getCamera().quaternion);
+          
+          const controlPosition = cameraPos.clone().add(
+            cameraDirection.multiplyScalar(5) // 5 units in front of camera
+          );
+          
+          spinControlSystem.positionControls(controlPosition, cameraPos);
+        }
+        break;
+        
+      case ShotState.EXECUTING:
+        // Move camera to a position to follow the ball in flight
+        cameraController.setStatePreset(CameraState.IN_FLIGHT, {
+          offset: new THREE.Vector3(6, 6, 6),
+          smoothingFactor: 0.05
+        });
+        cameraController.transitionToState(CameraState.IN_FLIGHT, 0.5, Easing.easeInOutCubic);
+        break;
+        
+      case ShotState.IDLE:
+        // Return to default camera position
+        cameraController.transitionToState(CameraState.IDLE, 1.0, Easing.easeInOutCubic);
+        break;
+    }
+    
+    // Update the help display position based on the camera
+    if (inputHelpDisplay && camera) {
+      const cameraPos = new THREE.Vector3();
+      camera.getCamera().getWorldPosition(cameraPos);
+      
+      // Position the display slightly in front of camera
+      const cameraDirection = new THREE.Vector3(0, 0, -1);
+      cameraDirection.applyQuaternion(camera.getCamera().quaternion);
+      
+      const displayPosition = cameraPos.clone().add(
+        cameraDirection.multiplyScalar(7) // 7 units in front of camera
+      );
+      displayPosition.y += 2; // Position above other UI elements
+      
+      inputHelpDisplay.positionDisplay(displayPosition, cameraPos);
+    }
+  }
+}
+
+/**
+ * Update camera state based on game state
  */
 function updateCameraStateForGameState(state: GameState): void {
   if (!cameraController) return;
@@ -349,53 +635,185 @@ function updateCameraStateForGameState(state: GameState): void {
       break;
       
     case GameState.AIMING:
-      // When aiming, zoom out and position the camera for a better view
-      cameraController.transitionToState(CameraState.AIMING, 1.0, Easing.easeInOut);
+      cameraController.transitionToState(CameraState.AIMING, 1.0, Easing.easeInOutCubic);
       break;
       
     case GameState.SHOT_IN_PROGRESS:
-      // When the ball is in motion, follow more closely
       cameraController.transitionToState(CameraState.IN_FLIGHT, 0.5, Easing.easeInOutCubic);
       break;
       
     case GameState.BALL_AT_REST:
-      // When the ball comes to rest, zoom in slightly
       cameraController.transitionToState(CameraState.AT_REST, 1.0, Easing.easeInOutCubic);
+      break;
+      
+    case GameState.OUT_OF_BOUNDS:
+      // Use an overview camera for out of bounds
+      cameraController.transitionToState(CameraState.OVERVIEW, 1.0, Easing.easeInOutCubic);
+      break;
+      
+    case GameState.RECOVERY:
+      // Use aiming camera for recovery
+      cameraController.transitionToState(CameraState.AIMING, 1.0, Easing.easeInOutCubic);
+      break;
+      
+    case GameState.COURSE_COMPLETE:
+      // Use celebration camera for course complete
+      cameraController.transitionToState(CameraState.OVERVIEW, 1.0, Easing.easeInOutCubic);
       break;
   }
 }
 
 /**
- * Set the game state and trigger appropriate camera transitions
- * @param newState The new game state
+ * Set the game state and handle transitions
  */
 function setGameState(newState: GameState): void {
-  // Skip if same state
-  if (newState === gameState) return;
+  if (gameState === newState) return;
   
   previousGameState = gameState;
   gameState = newState;
   
-  console.log(`Game state changed from ${previousGameState} to ${gameState}`);
+  // Sync shot system with the new game state
+  if (shotSystem) {
+    shotSystem.syncWithGameState(gameState);
+  }
   
-  // Update camera state to match
-  updateCameraStateForGameState(gameState);
+  // Update camera based on the new state
+  updateCameraStateForGameState(newState);
+  
+  console.log(`Game state changed from ${previousGameState} to ${gameState}`);
 }
 
 /**
- * Callback for creating physics objects from the debug UI
+ * Start the animation loop
  */
-function createPhysicsObject(position: THREE.Vector3, isBox: boolean): void {
-  if (isBox) {
-    // Create a random sized cube
-    const size = 0.3 + Math.random() * 0.5;
-    const color = Math.random() * 0xffffff;
-    testEnvironment.createCube(position, new THREE.Vector3(size, size, size), color);
-  } else {
-    // Create a random sized sphere
-    const radius = 0.3 + Math.random() * 0.5;
-    const color = Math.random() * 0xffffff;
-    testEnvironment.createSphere(position, radius, color);
+function startAnimationLoop() {
+  const animate = (time: number) => {
+    // Calculate delta time in seconds
+    const deltaTime = (time - lastTime) / 1000;
+    lastTime = time;
+    
+    // Performance monitoring
+    frameCount++;
+    if (time - lastFpsTime > FPS_UPDATE_INTERVAL) {
+      fps = Math.round((frameCount * 1000) / (time - lastFpsTime));
+      lastFpsTime = time;
+      frameCount = 0;
+      
+      // Log FPS
+      // console.log(`FPS: ${fps}`);
+    }
+    
+    // Update physics world
+    world.step();
+    
+    // Update the test environment
+    testEnvironment.update();
+    
+    // Update the ball test
+    ballTest.update(deltaTime);
+    
+    // Update the shot system
+    if (shotSystem) {
+      shotSystem.update(deltaTime);
+    }
+    
+    // Update the aiming system
+    if (aimingSystem) {
+      aimingSystem.update();
+    }
+    
+    // Update the power meter system and pass camera position for billboard effect
+    if (powerMeterSystem && camera) {
+      const cameraPos = new THREE.Vector3();
+      camera.getCamera().getWorldPosition(cameraPos);
+      powerMeterSystem.update(deltaTime, cameraPos);
+    }
+    
+    // Update the spin control system and pass camera position for billboard effect
+    if (spinControlSystem && camera) {
+      const cameraPos = new THREE.Vector3();
+      camera.getCamera().getWorldPosition(cameraPos);
+      spinControlSystem.update(deltaTime, cameraPos);
+    }
+    
+    // Check ball state and update game state if needed
+    checkBallState();
+    
+    // Update the camera controller
+    if (cameraController) {
+      cameraController.updateCameraPosition(deltaTime);
+    }
+    
+    // Update the debug renderer
+    debugRenderer.update();
+    
+    // Update the input manager
+    if (inputManager) {
+      inputManager.update(deltaTime);
+    }
+    
+    // Update the help display
+    if (inputHelpDisplay && camera) {
+      const cameraPos = new THREE.Vector3();
+      camera.getCamera().getWorldPosition(cameraPos);
+      inputHelpDisplay.update(deltaTime);
+    }
+    
+    // Update feedback system
+    if (feedbackSystem) {
+      feedbackSystem.update(deltaTime);
+    }
+    
+    // Update ShotResultsSystem
+    if (shotResultsSystem) {
+      shotResultsSystem.update(deltaTime);
+    }
+    
+    // Render the scene
+    renderer.render(scene, camera.getCamera());
+    
+    // Request next frame
+    animationFrameId = requestAnimationFrame(animate);
+  };
+  
+  // Start the animation loop
+  animationFrameId = requestAnimationFrame(animate);
+}
+
+/**
+ * Check the ball's state to automatically update game state when needed
+ */
+function checkBallState(): void {
+  if (!ballTest) return;
+  
+  const ball = ballTest.getBall();
+  if (!ball) return;
+  
+  // Get ball position
+  const position = ball.getPosition();
+  
+  // If ball is in motion and has stopped
+  if (gameState === GameState.SHOT_IN_PROGRESS && !ball.isMoving()) {
+    // Ball has come to rest
+    setGameState(GameState.BALL_AT_REST);
+  }
+  
+  // If ball is supposed to be at rest but is moving (e.g., was hit by something)
+  if (gameState === GameState.BALL_AT_REST && ball.isMoving()) {
+    // Ball is in motion again
+    setGameState(GameState.SHOT_IN_PROGRESS);
+  }
+  
+  // Check for out of bounds (example boundary: outside of -50 to 50 on x and z)
+  if (gameState === GameState.SHOT_IN_PROGRESS || gameState === GameState.BALL_AT_REST) {
+    const isOutOfBounds = 
+      position.x < -50 || position.x > 50 || 
+      position.z < -50 || position.z > 50 ||
+      position.y < -10; // Fell through the floor
+      
+    if (isOutOfBounds) {
+      handleOutOfBounds();
+    }
   }
 }
 
@@ -422,76 +840,169 @@ function setupLighting(): void {
   scene.add(directionalLight);
 }
 
-function startAnimationLoop() {
-  const animate = (time: number) => {
-    // Calculate deltaTime in seconds
-    const deltaTime = (time - lastTime) / 1000;
-    lastTime = time;
-    
-    // Step the physics world
-    world.step();
-    
-    // Update test environment
-    testEnvironment.update();
-    
-    // Update ball test with delta time
-    ballTest.update(deltaTime);
-    
-    // Check ball state to update game state if needed
-    checkBallState();
-    
-    // Update camera controller if it exists
-    if (cameraController) {
-      cameraController.updateCameraPosition(deltaTime);
-    }
-    
-    // Update debug visualization
-    debugRenderer.update();
-    
-    // Render the scene
-    renderer.render(scene, camera.getCamera());
-    
-    // Update FPS counter
-    frameCount++;
-    if (time - lastFpsTime > FPS_UPDATE_INTERVAL) {
-      fps = Math.round((frameCount * 1000) / (time - lastFpsTime));
-      lastFpsTime = time;
-      frameCount = 0;
-      
-      // Log FPS or display it in debug overlay
-      console.log(`Current FPS: ${fps}`);
-      
-      // Optionally adjust performance settings based on FPS
-      if (cameraController && fps < 30) {
-        cameraController.setPerformanceMode(true, 30); // Switch to high performance mode if FPS drops
-      }
-    }
-    
-    // Continue animation loop
-    animationFrameId = requestAnimationFrame(animate);
-  };
-  
-  animationFrameId = requestAnimationFrame(animate);
+function createPhysicsObject(position: THREE.Vector3, isBox: boolean): void {
+  if (isBox) {
+    // Create a random sized cube
+    const size = 0.3 + Math.random() * 0.5;
+    const color = Math.random() * 0xffffff;
+    testEnvironment.createCube(position, new THREE.Vector3(size, size, size), color);
+  } else {
+    // Create a random sized sphere
+    const radius = 0.3 + Math.random() * 0.5;
+    const color = Math.random() * 0xffffff;
+    testEnvironment.createSphere(position, radius, color);
+  }
 }
 
 /**
- * Check the ball's state to automatically update game state when needed
+ * Set up the input manager with callbacks for each action
  */
-function checkBallState(): void {
-  if (!ballTest) return;
+function setupInputManager(): void {
+  if (!inputManager || !shotSystem) return;
   
-  const ball = ballTest.getBall();
-  if (!ball) return;
+  // Set up default bindings with callbacks for all shot actions
+  inputManager.setupDefaultBindings({
+    // General actions
+    onStartShot: () => {
+      if (shotSystem.getState() === ShotState.IDLE) {
+        shotSystem.enterAimingState();
+      }
+    },
+    onConfirm: () => {
+      // Different confirmation based on the current state
+      switch (shotSystem.getState()) {
+        case ShotState.AIMING:
+          if (aimingSystem) aimingSystem.confirmAim();
+          break;
+        case ShotState.POWER:
+          if (powerMeterSystem) powerMeterSystem.selectPower();
+          break;
+        case ShotState.SPIN:
+          if (spinControlSystem) spinControlSystem.confirmSpin();
+          break;
+      }
+    },
+    onCancel: () => {
+      if (shotSystem.getState() !== ShotState.IDLE && 
+          shotSystem.getState() !== ShotState.EXECUTING) {
+        shotSystem.cancelShot();
+      }
+    },
+    onBack: () => {
+      shotSystem.goToPreviousState();
+    },
+    onReset: () => {
+      // Reset based on state
+      if (shotSystem.getState() === ShotState.SPIN && spinControlSystem) {
+        spinControlSystem.resetSpin();
+      }
+    },
+    
+    // Aiming actions
+    onAim: (direction) => {
+      if (shotSystem.getState() === ShotState.AIMING && aimingSystem) {
+        aimingSystem.adjustAimDirection(direction);
+      }
+    },
+    onAimPosition: (position) => {
+      if (shotSystem.getState() === ShotState.AIMING && aimingSystem) {
+        aimingSystem.setAimFromScreenPosition(position);
+      }
+    },
+    
+    // Power actions
+    onPowerSelect: () => {
+      if (shotSystem.getState() === ShotState.POWER && powerMeterSystem) {
+        powerMeterSystem.selectPower();
+      }
+    },
+    
+    // Spin actions
+    onSpin: (direction) => {
+      if (shotSystem.getState() === ShotState.SPIN && spinControlSystem) {
+        spinControlSystem.addSpin(direction);
+      }
+    },
+    onSpinPosition: (position) => {
+      if (shotSystem.getState() === ShotState.SPIN && spinControlSystem) {
+        const normalizedPosition = new THREE.Vector2(
+          THREE.MathUtils.clamp(position.x, -1, 1),
+          THREE.MathUtils.clamp(position.y, -1, 1)
+        );
+        
+        // Convert 2D position to 3D spin vector
+        const spinVector = new THREE.Vector3(
+          normalizedPosition.x * 0.5, // Left/Right spin
+          normalizedPosition.y * 0.7, // Top/Back spin
+          0 // No side spin from 2D position
+        );
+        
+        spinControlSystem.setSpin(spinVector);
+      }
+    }
+  });
   
-  // If ball is in motion and has stopped
-  if (gameState === GameState.SHOT_IN_PROGRESS && !ball.isMoving()) {
-    // Ball has come to rest
-    setGameState(GameState.BALL_AT_REST);
+  // Set initial shot state
+  inputManager.setShotState(shotSystem.getState());
+}
+
+// Add a function to handle out of bounds conditions
+function handleOutOfBounds(): void {
+  console.log('Ball went out of bounds!');
+  
+  // Set game state to out of bounds
+  setGameState(GameState.OUT_OF_BOUNDS);
+  
+  // Stop ball physics
+  if (ballTest) {
+    const ball = ballTest.getBall();
+    if (ball) {
+      ball.stop();
+    }
   }
   
-  // If ball is supposed to be at rest but is moving (e.g., was hit by something)
-  if (gameState === GameState.BALL_AT_REST && ball.isMoving()) {
-    // Ball is in motion again
-    setGameState(GameState.SHOT_IN_PROGRESS);
+  // Show out of bounds feedback
+  if (feedbackSystem && ballTest) {
+    const ball = ballTest.getBall();
+    if (ball) {
+      const position = ball.getPosition();
+      // Use ball collision effect temporarily for out of bounds
+      feedbackSystem.showFeedback(
+        FeedbackType.BALL_COLLISION, 
+        position,
+        { color: 0xFF0000, intensity: 2.0, duration: 2.0 }
+      );
+    }
+  }
+  
+  // After a delay, initiate recovery sequence
+  setTimeout(() => {
+    recoverBall();
+  }, 2000);
+}
+
+// Add a function to handle ball recovery
+function recoverBall(): void {
+  console.log('Recovering ball...');
+  
+  // Set game state to recovery
+  setGameState(GameState.RECOVERY);
+  
+  // Reset ball to last valid position or a safe position
+  if (ballTest) {
+    const ball = ballTest.getBall();
+    if (ball) {
+      // In a real game, we would use the last valid position
+      // For now, just reset to a safe position
+      const safePosition = new THREE.Vector3(0, 1, 0);
+      ball.reset(safePosition);
+      
+      console.log('Ball reset to safe position', safePosition);
+      
+      // After a brief delay, transition to aiming state
+      setTimeout(() => {
+        setGameState(GameState.AIMING);
+      }, 1000);
+    }
   }
 } 

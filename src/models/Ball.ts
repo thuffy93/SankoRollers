@@ -9,7 +9,8 @@ import {
   setAngularVelocity as physicsSetAngularVelocity,
   stopBody,
   resetBody,
-  isBodyMoving
+  isBodyMoving,
+  applyTorque
 } from '../systems/PhysicsSystem';
 
 // Type definitions for collision callbacks
@@ -611,20 +612,61 @@ export class Ball {
   }
   
   /**
-   * Set the angular velocity of the ball directly
-   * @param velocity Angular velocity vector to set
+   * Set the angular velocity of the ball
+   * @param velocity The angular velocity vector
    */
   setAngularVelocity(velocity: THREE.Vector3): void {
-    // Set the angular velocity of the physics body
+    if (!this.body) return;
+    
+    // Apply to physics body using PhysicsSystem utility function
     physicsSetAngularVelocity(this.body, velocity);
     
-    // Wake up if sleeping
-    if (this.isSleeping) {
-      this.isSleeping = false;
-      this.sleepTime = 0;
+    // Debug output
+    if (this.debugMode) {
+      console.log(`Angular velocity set: [${velocity.x.toFixed(2)}, ${velocity.y.toFixed(2)}, ${velocity.z.toFixed(2)}]`);
+    }
+  }
+  
+  /**
+   * Apply spin forces to the ball based on applied impulse
+   * @param spin Spin vector (x: horizontal, y: top/back, z: side)
+   */
+  applySpin(spin: THREE.Vector3): void {
+    if (!this.body) return;
+    
+    // Scale the spin values appropriately
+    const scaledSpin = spin.clone();
+    
+    // Top/back spin (y-axis) affects forward/backward rotation
+    if (Math.abs(scaledSpin.y) > 0.01) {
+      // Add torque perpendicular to movement direction
+      const torque = new THREE.Vector3(
+        scaledSpin.y, // Top/back spin affects x-axis rotation
+        0,
+        0
+      );
+      applyTorque(this.body, torque);
     }
     
-    console.log(`Set angular velocity: (${velocity.x.toFixed(2)}, ${velocity.y.toFixed(2)}, ${velocity.z.toFixed(2)})`);
+    // Side spin (z-axis) affects left/right drift
+    if (Math.abs(scaledSpin.z) > 0.01) {
+      const torque = new THREE.Vector3(
+        0,
+        scaledSpin.z, // Side spin affects y-axis rotation
+        0
+      );
+      applyTorque(this.body, torque);
+    }
+    
+    // Horizontal spin affects side-to-side movement
+    if (Math.abs(scaledSpin.x) > 0.01) {
+      const torque = new THREE.Vector3(
+        0,
+        0,
+        scaledSpin.x // Horizontal spin affects z-axis rotation
+      );
+      applyTorque(this.body, torque);
+    }
   }
   
   /**
