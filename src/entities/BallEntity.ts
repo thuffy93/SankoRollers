@@ -16,6 +16,7 @@ export class BallEntity {
   private minVelocityThreshold: number = 0.1;
   private tempVec3: THREE.Vector3 = new THREE.Vector3();
   private eventSystem: EventSystem;
+  private cameraTarget: THREE.Vector3 = new THREE.Vector3();
   
   // Ball physics properties
   private restitution: number = 0.7; // Bounciness
@@ -159,10 +160,13 @@ export class BallEntity {
   }
   
   /**
-   * Get the ball velocity
+   * Get the ball's velocity vector
    */
   public getVelocity(): THREE.Vector3 {
-    // Get linear velocity from physics
+    if (!this.rigidBody) {
+      return new THREE.Vector3();
+    }
+    
     const velocity = this.rigidBody.linvel();
     return new THREE.Vector3(velocity.x, velocity.y, velocity.z);
   }
@@ -240,10 +244,33 @@ export class BallEntity {
   }
   
   /**
-   * Check if the ball is moving
+   * Get whether the ball is moving
    */
   public isMovingState(): boolean {
     return this.isMoving;
+  }
+  
+  /**
+   * Set whether the ball is moving or not
+   */
+  public setMoving(isMoving: boolean): void {
+    // Only update if the state is changing
+    if (this.isMoving !== isMoving) {
+      this.isMoving = isMoving;
+      
+      // Update the camera target based on movement state
+      if (this.isMoving) {
+        // When moving, target the actual position
+        this.cameraTarget = this.getPosition();
+      } else {
+        // When stopped, keep the last position as target
+        this.cameraTarget = this.getPosition().clone();
+        
+        // Don't emit the event here - let the Game class handle it
+        // This was causing an infinite recursion loop
+        // this.eventSystem.emit(GameEvents.BALL_STOPPED);
+      }
+    }
   }
   
   /**

@@ -1,160 +1,254 @@
-<<<<<<< HEAD
 # Active Context: Cosmic Rollers
 
-## Current Focus: Shot Mechanics Implementation
+## Current Focus: Fixing Critical Gameplay Issues and Enhancing Visual Feedback
 
-We are currently implementing the core game mechanics with a focus on the shot controls system. We've established the basic architecture and have implemented core components including physics integration, game loop, and basic entity relationships.
+After completing the major refactoring of the shot system, we've identified several critical issues that need immediate attention before proceeding with further feature development:
 
-### Recent Activities
+### Critical Issues to Address
 
-- Created core game architecture with Three.js for rendering and Rapier for physics
-- Implemented the singleton Game class managing initialization and game loop
-- Developed entity system with BallEntity and TerrainEntity
-- Set up camera controller for isometric view
-- Implemented ShotController for player shot mechanics
-- Added basic UI with power meter and shoot button in HTML
-- Connected game.fireShot method to the UI's shoot button
+1. **Ball Not Moving After Charging State**
+   - **Issue**: The ball is not shooting after the CHARGING state, possibly jumping straight from CHARGING to ROLLING to IDLE without applying forces
+   - **Suspected Causes**:
+     - Missing or incorrect physics application in ShotPhysics.executeShot()
+     - State transition issue where the SHOT_EXECUTE event isn't properly triggering physics
+     - Potential ball rigidbody sleeping state not being awakened
+   - **Fix Approach**:
+     - Add debugging to ShotController.handleShotExecute() to verify execution
+     - Ensure ShotPhysics.executeShot() is applying sufficient force to move the ball
+     - Verify the ball's rigidbody is being properly awakened with setLinvel()
+     - Implement better error handling and return values from shot execution methods
 
-### Current State
+2. **Trajectory Visualization Issues**
+   - **Issue**: The trajectory visualizer should not change length during CHARGING phase, but should update to show trajectory based on other parameters
+   - **Fix Approach**:
+     - Modify ShotController.updateTrajectoryVisualization() to maintain the chosen guide length in CHARGING state
+     - Ensure PowerController does not modify guide length during charging
+     - Update TrajectorySystem to apply guide length limitation consistently in both SHOT_PANEL and CHARGING states
 
-- Core game architecture is implemented and functioning
-- Physics integration with Rapier is working
-- Basic shot firing mechanism is implemented
-- UI control for firing shots is operational
-- Entity system foundations are in place
-- Game state management system established
+### Implementation Plan
 
-## Key Decisions in Progress
+#### Ball Movement Fix
+
+```typescript
+// In ShotPhysics.executeShot()
+public executeShot(): boolean {
+  // Calculate shot vector
+  const shotVector = this.parameterManager.calculateShotVector();
+  
+  // Ensure vector has meaningful magnitude
+  if (shotVector.length() < 0.1) {
+    console.error("Shot vector too small:", shotVector);
+    return false;
+  }
+  
+  // Apply impulse to ball - ensure this is actually moving the ball
+  this.ballBody.applyImpulse(
+    { x: shotVector.x, y: shotVector.y, z: shotVector.z }, 
+    true // Wake the body
+  );
+  
+  // Apply additional impulse to ensure it wakes up
+  if (this.ballBody.isSleeping()) {
+    console.log("Ball was sleeping, applying wake-up force");
+    this.ballBody.setLinvel({x: 0.01, y: 0.01, z: 0.01}, true);
+  }
+  
+  console.log("Applied shot impulse:", shotVector);
+  return true;
+}
+
+// In ShotController.handleShotExecute()
+private handleShotExecute(): void {
+  // Only execute shot in charging state (Phase 3)
+  if (!this.gameStateManager.isState(GameState.CHARGING)) {
+    console.log("Shot execute ignored - not in CHARGING state");
+    return;
+  }
+  
+  console.log("Executing shot with power:", this.parameterManager.power);
+  
+  // Hide trajectory
+  this.trajectorySystem.hideTrajectory();
+  
+  // Execute the shot physics with error handling
+  const success = this.shotPhysics.executeShot();
+  
+  if (!success) {
+    console.error("Failed to execute shot!");
+    return;
+  }
+  
+  // Super shot effect
+  if (this.parameterManager.isSuperShot) {
+    this.showSuperShotEffect();
+  }
+  
+  // Change to ROLLING state to track ball movement
+  this.gameStateManager.setState(GameState.ROLLING);
+}
+```
+
+#### Trajectory Visualization Fix
+
+```typescript
+// In ShotController.updateTrajectoryVisualization()
+private updateTrajectoryVisualization(): void {
+  // Only show trajectory in specific states
+  if (!(this.gameStateManager.isState(GameState.AIMING) || 
+        this.gameStateManager.isState(GameState.SHOT_PANEL) ||
+        this.gameStateManager.isState(GameState.CHARGING))) {
+    this.trajectorySystem.hideTrajectory();
+    return;
+  }
+  
+  // Get ball position
+  const ballPosition = this.ball.getPosition();
+  
+  // Update trajectory based on current parameters
+  this.trajectorySystem.predictTrajectory(
+    ballPosition,
+    this.parameterManager.getShotDirection(),
+    this.parameterManager.power,
+    this.parameterManager.shotType,
+    this.parameterManager.spinType,
+    this.parameterManager.spinIntensity
+  );
+  
+  // If in SHOT_PANEL or CHARGING state, limit trajectory length based on guide
+  if (this.gameStateManager.isState(GameState.SHOT_PANEL) || 
+      this.gameStateManager.isState(GameState.CHARGING)) {
+    this.trajectorySystem.limitTrajectoryLength(
+      this.parameterManager.currentGuideDistance
+    );
+  }
+}
+```
+
+### Architecture Exploration: Hybrid ECS
+
+Additionally, we're exploring a targeted, hybrid approach to Entity Component System (ECS) architecture for specific performance-critical subsystems:
+
+- **Focus Areas**: Particle systems, terrain systems, and collectibles
+- **Approach**: Implement data-oriented design principles selectively rather than a full ECS framework
+- **Benefits**: Performance optimization for high-entity-count systems without complete architecture redesign
+- **Documentation**: Created a detailed reference document at `memory-bank/design_references/HybridECS.md`
+
+### Testing and Validation Approach
+
+1. **Debugging Instrumentation**:
+   - Add comprehensive logging to track state transitions and physics application
+   - Implement visual indicators showing ball forces and awakened status
+
+2. **Systematic Testing**:
+   - Test different shot powers and angles to ensure consistent behavior
+   - Verify trajectory visualization maintains correct guide length in all phases
+   - Ensure state transitions occur in the expected sequence
+
+3. **Performance Monitoring**:
+   - Track frame times during shot execution to identify any performance issues
+   - Monitor memory usage during extended play sessions
+
+## Key Decisions Completed
 
 ### Architecture Decisions
-- Evaluating modular structure for maintainability vs performance
-- Considering different approaches to physics integration with Three.js
-- Determining the optimal approach for procedural generation pipeline
+- ✅ Restructured shot controller into specialized component classes
+- ✅ Implemented centralized parameter management with ShotParameterManager
+- ✅ Separated trajectory simulation from visualization
+- ✅ Created clear interfaces between components
+- ✅ Used facade pattern to simplify coordination between components
+- ✅ Improved event handling to prevent recursion and memory leaks
 
 ### Implementation Priorities
-- Fixing the shot aiming mechanism is the immediate priority
-- Refining ball physics and collision response
-- Improving camera behavior for shot aiming and ball following
-- Enhancing user feedback during shot execution
+- ✅ Refactored four-phase shot system into specialized controllers
+- ✅ Created dedicated physics behavior classes
+- ✅ Implemented proper parameter management
+- ✅ Redesigned trajectory system with better separation of concerns
+- ✅ Fixed critical bugs in event handling and state management
 
 ## Next Steps
 
 ### Immediate Tasks
-1. Investigate and fix the aiming function in ShotController
-2. Connect keyboard/mouse inputs properly to the aiming controls
-3. Improve the aim arrow visualization for better feedback
-4. Implement proper state transitions during the aiming process
-5. Add more feedback for shot power and direction
+
+1. **Testing Infrastructure**:
+   - Create unit tests for each component
+   - Implement integration tests for component interactions
+   - Add visual regression tests for UI components
+   
+2. **Visual Enhancement**:
+   - Add particle effects for shots and collisions
+   - Improve visual feedback for boost opportunities
+   - Enhance trajectory visualization with better indicators
+   
+3. **Game Flow Implementation**:
+   - Create hole completion logic
+   - Implement scoring system
+   - Add level transitions and progression
+   
+4. **Sound Effects**:
+   - Add sound feedback for shots, bounces, and boosts
+   - Implement ambient background music
+   - Create audio manager for sound coordination
+
+5. **Terrain Enhancement**:
+   - Create different terrain types with unique properties
+   - Add obstacles and hazards
+   - Implement special zones with effects
 
 ### Short-term Goals
-- Create a minimal playable prototype with working physics and shot mechanics
-- Implement the complete shot mechanics (aim, power, spin)
-- Add simple collision detection between ball and terrain
-- Refine camera follow behavior with isometric perspective
+- Enhance visual and audio feedback for better player experience
+- Create comprehensive test suite for all components
+- Implement scoring and progression systems
+- Add more terrain variety and obstacles
 
 ### Medium-term Goals
-- Implement complete shot system with different shot types
-- Add targets and obstacles with appropriate physics
-- Create basic procedural terrain generation
-- Develop win conditions and score tracking
+- Create level editor for custom course creation
+- Implement multiplayer functionality
+- Add special abilities and power-ups
+- Create procedural course generation
 
 ## Open Questions and Challenges
 
 ### Technical Challenges
-- Ensuring smooth sync between Three.js visuals and Rapier physics
-- Properly handling input for aiming direction
-- Creating intuitive aiming controls that work well with isometric perspective
-- Managing game state transitions between aiming, charging, and rolling states
+- Optimizing performance with the component-based architecture
+- Creating smooth transitions between levels
+- Implementing multiplayer synchronization
+- Balancing physics parameters for optimal gameplay feel
 
-### Current Issues
-- **Shot Aiming Not Working**: The aiming function isn't working properly. The interface allows firing shots with the shoot button, but aiming direction control is not functioning correctly.
-- Need to determine if the issue is with input handling, arrow visualization, or angle calculation
-- The aim arrow may not be updating correctly in response to user input
+### Recent Insights
+- The component-based architecture has significantly improved maintainability
+- Centralizing parameter management prevents data synchronization issues
+- Facade pattern works well for coordinating complex systems
+- Pre-binding event handlers and storing references prevents memory leaks
+- Careful state management is essential for preventing race conditions
 
-## Recent Insights
+## Implementation Notes
 
-- Physics integration requires careful handling of async WASM initialization
-- Shot mechanics need to balance precision with accessibility
-- Game state management is essential for coordinating the shot sequence (aim → charge → execute)
-- UI integration requires careful coordination with the core game mechanics
+### Bug Fix: Ball Movement Event Recursion
+- Problem: Infinite recursion occurring when handling ball stopped events
+- Root cause: BallEntity.setMoving() was emitting events that would trigger itself recursively
+- Solution:
+  1. Removed event emission from BallEntity.setMoving()
+  2. Used pre-bound event handlers in Game.ts to prevent creating new bindings
+  3. Stored handler references for proper cleanup
+  4. Modified the update method to correctly handle ball state changes
+  5. Added proper state tracking in BallEntity
+
+### Component Architecture Benefits
+- Each controller now has a single responsibility
+- Parameter changes are centralized and propagated through events
+- Physics calculations are isolated from visualization logic
+- Clear interfaces between components simplify testing and extension
+- Facade pattern reduces coupling between subsystems
+
+### Event System Improvements
+- Pre-binding event handlers prevents memory leaks
+- Storing handler references enables proper cleanup
+- Clear event flow documentation prevents unexpected interactions
+- Careful attention to event propagation prevents infinite loops
 
 ## Collaboration Notes
-
-- Next session will focus on debugging the aiming mechanism
-- We should examine the input handling in ShotController
-- The aim arrow visualization code needs review
-- We need to test the interaction between game states and the aiming process 
-=======
-# Active Context
-
-## Current Focus
-We are starting the project setup and initializing the Memory Bank to establish clear documentation for the Cosmic Rollers golf game. Our immediate focus is on:
-
-1. Setting up the project structure
-2. Establishing development standards (300-500 lines per file)
-3. Documenting the game architecture and systems
-4. Preparing for Phase 1 implementation
-
-## Recent Changes
-- Initialized the Memory Bank with core documentation files
-- Documented the project overview, requirements, and technical specifications
-- Established key architectural patterns and code organization guidelines
-
-## Next Steps
-
-### Immediate (Current Sprint)
-1. **Project Initialization**:
-   - Create project scaffolding with Vite, React, and TypeScript
-   - Set up ESLint, Prettier, and testing frameworks
-   - Initialize repository with proper structure
-
-2. **Core Framework Setup**:
-   - Set up ECSY and ECSY-Three integration
-   - Implement basic Three.js rendering pipeline
-   - Create responsive canvas container
-
-3. **Physics Foundation**:
-   - Integrate Rapier physics
-   - Create basic physics world setup
-   - Implement physics abstraction layer
-
-### Short Term (Next Sprint)
-1. **Ball Physics**:
-   - Implement basic ball movement physics
-   - Create test environment for physics tuning
-   - Add initial collision detection
-
-2. **Camera System**:
-   - Implement isometric camera with proper angle
-   - Add camera control behaviors
-   - Setup camera state machine
-
-3. **Simple Terrain**:
-   - Create basic flat terrain for testing
-   - Implement collision with terrain
-   - Add simple visual representation
-
-## Active Decisions & Considerations
-
-### Technical Decisions
-- **ECSY vs Alternative ECS**: Selected ECSY for its integration with Three.js and active community
-- **React Integration Strategy**: Deciding between react-three-fiber and direct Three.js integration
-- **Physics Integration**: Evaluating optimal WASM loading strategy for Rapier
-
-### Open Questions
-- How to structure the physics abstraction layer for potential engine swapping?
-- What's the optimal approach for serializing course data?
-- How to handle cross-platform input consistently?
-- Best approach for implementing the three-phase shot system?
-
-### Risks & Mitigations
-| Risk | Mitigation |
-|------|------------|
-| Physics performance on low-end devices | Early optimization, quality tiers |
-| Complexity of wall-clinging mechanics | Early prototyping, simplified initial version |
-| Cross-browser compatibility | Automated testing on multiple platforms |
-| Asset loading times | Progressive loading, asset optimization pipeline |
-
-## Current Blockers
-- None at present - project initialization phase 
->>>>>>> 5080cde72b173858c5d2a159c5d70f021895bc1b
+- Focus on adding visual and audio feedback for better player experience
+- Add comprehensive tests for all components
+- Document component interactions for future developers
+- Consider performance optimization for complex physics calculations
+- Plan for future features while maintaining the clean architecture

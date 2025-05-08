@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # System Patterns: Cosmic Rollers
 
 ## Architecture Overview
@@ -155,104 +154,86 @@ graph TD
 - Clear game state transitions
 - Observable properties for reactive UI updates
 - Persistent storage for game progress and settings
-- Reset mechanisms for level restart 
-=======
-# System Patterns
+- Reset mechanisms for level restart
 
-## Architecture Overview
-Cosmic Rollers uses an Entity Component System (ECS) architecture with ECSY as the framework, providing a clean separation of concerns and improved performance for a physics-based game.
+## Component-Based Shot System Architecture
+
+After significant refactoring, we've implemented a component-based architecture for the shot system, breaking down the monolithic ShotController into specialized components with clear responsibilities:
 
 ```mermaid
 flowchart TD
-    subgraph "React Application"
-        RC[React Components] --> UI[UI Layer]
-        UI --> Canvas[Canvas Container]
-        Canvas --> ECSY[ECSY-Three Provider]
-    end
+    SC[ShotController] --> SPM[ShotParameterManager]
+    SC --> AC[AimingController]
+    SC --> SPC[ShotPanelController]
+    SC --> PC[PowerController]
+    SC --> BC[BoostController]
+    SC --> SP[ShotPhysics]
     
-    subgraph "Game Engine"
-        ECSY --> Physics[Physics System]
-        ECSY --> Rendering[Rendering System]
-        ECSY --> Input[Input System]
-        ECSY --> Game[Game Logic System]
-        
-        Physics --> Rapier[Rapier WASM]
-        Rendering --> Three[Three.js]
-        
-        Components[Components] --> Physics
-        Components --> Rendering
-        Components --> Game
-        Components --> Input
-    end
+    SPM --> |Events| AC
+    SPM --> |Events| SPC
+    SPM --> |Events| PC
+    SPM --> |Events| BC
+    SPM --> |Parameters| SP
+    
+    AC -.-> |Uses| SPM
+    SPC -.-> |Uses| SPM
+    PC -.-> |Uses| SPM
+    BC -.-> |Uses| BallEntity
+    SP -.-> |Uses| BallEntity
+    
+    SPC --> |Uses| TS[TrajectorySystem]
 ```
 
-## Core Design Patterns
+### Component Responsibilities
 
-### Entity Component System (ECS)
-- **Entities**: Game objects (ball, targets, terrain)
-- **Components**: Data containers (transform, physics, rendering)
-- **Systems**: Logic that processes entities with relevant components
+1. **ShotController**: Serves as a facade for the entire shot system, coordinating the different phase controllers and handling overall state transitions.
 
-### Provider Pattern
-- ECSY-Three world provided through React context
-- Systems access shared world instance through hooks
-- Clean mounting/unmounting of 3D resources
+2. **ShotParameterManager**: Central store for all shot parameters (angle, power, shot type, spin type, etc.), providing a single source of truth and notifying other components of parameter changes through events.
 
-### State Machine Pattern
-- Game states (IDLE, AIMING, POWER, SHOT, ROLLING)
-- Input handlers change based on current state
-- Clear transitions between states
+3. **AimingController**: Handles Phase 1 (Direction Selection), including the aim arrow visualization and direction input processing.
 
-### Event System
-- Observer pattern for game events
-- Components subscribe to relevant events
-- Decouples systems for better testability
+4. **ShotPanelController**: Handles Phase 2 (Guide Length Selection), managing the UI for guide length toggling and coordinating with the trajectory system.
 
-## Code Organization
+5. **PowerController**: Handles Phase 3 (Power and Spin Selection), including the oscillating power meter and spin input processing.
 
-```
-src/
-├── components/         # React UI components
-│   ├── game/           # Game-specific UI
-│   ├── menu/           # Menu screens
-│   └── ui/             # Reusable UI elements
-├── core/               # Core game systems
-│   ├── ecs/            # ECS setup and configuration
-│   ├── physics/        # Physics integration
-│   ├── rendering/      # Three.js integration
-│   └── state/          # Game state management
-├── entities/           # Entity factories
-├── systems/            # ECS systems
-├── components/         # ECS components
-├── utils/              # Utility functions
-└── assets/             # Game assets
+6. **BoostController**: Handles Phase 4 (Shot Execution and Boost), detecting bounce opportunities and applying boost forces when activated.
+
+7. **ShotPhysics**: Encapsulates physics calculations for different shot types, applying appropriate forces and spin effects.
+
+### Communication Patterns
+
+- **Parameter Changes**: Components update parameters through the ShotParameterManager, which then emits events to notify other components.
+- **State Transitions**: The ShotController observes game state changes and delegates to the appropriate phase controller.
+- **Event-Based Coordination**: Components communicate primarily through the EventSystem, reducing direct coupling.
+- **Facade Pattern**: ShotController presents a simplified interface to the rest of the game while delegating to specialized components.
+
+## Refactored Trajectory System
+
+The trajectory system has been refactored into a clear separation between simulation and visualization:
+
+```mermaid
+flowchart LR
+    TS[TrajectorySystem] --> TSim[TrajectorySimulator]
+    TS --> TR[TrajectoryRenderer]
+    
+    SPC[ShotPanelController] --> TS
+    SC[ShotController] --> TS
+    
+    TSim --> |trajectory data| TR
 ```
 
-## Component Structure Guidelines
-- Each component should focus on a single responsibility
-- Maximum file size: 300-500 lines of code
-- Components should be independent and reusable where possible
-- Use composition over inheritance
+### Component Responsibilities
 
-## Key Technical Decisions
+1. **TrajectorySystem**: Serves as a facade, coordinating between simulation and rendering components.
 
-### Three.js Integration
-- Use ECSY-Three for seamless ECS-Three.js integration
-- OrthographicCamera for isometric view
-- Consistent scene graph organization
+2. **TrajectorySimulator**: Handles the physics calculations to predict the ball's trajectory based on shot parameters, generating points and bounce locations.
 
-### Physics Implementation
-- Rapier WASM for high-performance physics
-- Custom physics components for specialized behaviors
-- Collision groups for proper interaction filtering
+3. **TrajectoryRenderer**: Manages the visual representation of the trajectory, including the line, bounce indicators, and landing indicators.
 
-### Shot System
-- State-based implementation with clear phases
-- Predictive trajectory visualization
-- Separate input handling by state
+### Benefits of the New Architecture
 
-### React Integration
-- React for UI only, not game logic
-- Canvas managed by React for lifecycle control
-- Event-based communication between UI and game systems 
->>>>>>> 5080cde72b173858c5d2a159c5d70f021895bc1b
+- **Separation of Concerns**: Clear separation between physics simulation and visual rendering
+- **Improved Testability**: Each component can be tested in isolation
+- **Better Maintainability**: Changes to one aspect (e.g., physics) don't affect other aspects (e.g., visualization)
+- **Enhanced Performance**: More efficient updates by only recalculating what's necessary
+- **Clearer Data Flow**: Well-defined interfaces between components

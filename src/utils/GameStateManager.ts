@@ -2,11 +2,13 @@
  * Game state enum
  */
 export enum GameState {
-  IDLE = 'IDLE',           // Waiting for player input
-  AIMING = 'AIMING',       // Player is aiming shot
-  CHARGING = 'CHARGING',   // Player is selecting power
-  ROLLING = 'ROLLING',     // Ball is in motion
-  PAUSED = 'PAUSED'        // Game is paused
+  IDLE = 'IDLE',               // Waiting for player input
+  AIMING = 'AIMING',           // Phase 1: Player is selecting direction
+  SHOT_PANEL = 'SHOT_PANEL',   // Phase 2: Player is selecting guide length (short/long)
+  CHARGING = 'CHARGING',       // Phase 3: Player is selecting power and spin
+  ROLLING = 'ROLLING',         // Phase 4a: Ball is in motion (regular rolling)
+  BOOST_READY = 'BOOST_READY', // Phase 4b: Ball can be boosted at bounce point
+  PAUSED = 'PAUSED'            // Game is paused
 }
 
 /**
