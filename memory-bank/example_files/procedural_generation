@@ -1,0 +1,196 @@
+import { Noise } from 'noisejs';
+import { AStar } from 'pathfinding';
+
+/**
+ * Create a procedurally generated course using Noise.js
+ */
+export function generateProceduralCourse(seed, difficulty, theme) {
+  // Initialize seeded noise
+  const noise = new Noise(seed);
+  
+  // Generate terrain base
+  const terrainData = generateTerrainBase(noise, difficulty, theme);
+  
+  // Create course elements based on terrain data
+  const { terrain, hazards, targets, startPosition } = 
+    createCourseElements(terrainData, noise, difficulty, theme);
+  
+  // Validate course solvability using pathfinding
+  const isSolvable = validateCourseSolvability(
+    terrain, hazards, targets, startPosition
+  );
+  
+  // If not solvable, regenerate or adjust course
+  if (!isSolvable) {
+    return adjustCourseForSolvability(
+      terrain, hazards, targets, startPosition, noise, difficulty
+    );
+  }
+  
+  return { terrain, hazards, targets, startPosition, seed, difficulty, theme };
+}
+
+/**
+ * Generate terrain height map using Noise.js
+ */
+function generateTerrainBase(noise, difficulty, theme) {
+  // Grid dimensions for terrain
+  const width = 30 + (difficulty * 5); // larger courses for higher difficulty
+  const height = 30 + (difficulty * 5);
+  const resolution = 1; // 1 unit per grid cell
+  
+  // Height map array
+  const heightMap = new Array(width);
+  
+  // Generate height map using multiple octaves of noise
+  for (let x = 0; x < width; x++) {
+    heightMap[x] = new Array(height);
+    
+    for (let z = 0; z < height; z++) {
+      // Calculate noise value for this point (multiple octaves for varied terrain)
+      let value = 0;
+      let frequency = 0.05; // Base frequency
+      let amplitude = 1;
+      
+      // Use multiple octaves for more natural terrain
+      for (let o = 0; o < 3; o++) {
+        const nx = x * frequency;
+        const nz = z * frequency;
+        
+        // Add noise value scaled by amplitude
+        value += noise.perlin2(nx, nz) * amplitude;
+        
+        // Decrease amplitude and increase frequency for each octave
+        amplitude *= 0.5;
+        frequency *= 2;
+      }
+      
+      // Apply theme-specific modifications
+      switch (theme) {
+        case 'meadow':
+          // Gentler slopes
+          value *= 0.3;
+          break;
+        case 'crystal':
+          // More jagged terrain
+          value = Math.pow(value, 2) * 0.5;
+          break;
+        case 'sky':
+          // More dramatic height differences
+          value *= 0.7;
+          if (value > 0.2) value += 0.3;
+          break;
+        case 'factory':
+          // Flatter with occasional raised sections
+          value = Math.round(value * 3) / 3 * 0.6;
+          break;
+      }
+      
+      // Scale to desired height range
+      const baseHeight = 0;
+      const heightScale = 3 + (difficulty * 0.5); // Higher difficulty = more height variation
+      
+      // Set height value
+      heightMap[x][z] = baseHeight + value * heightScale;
+    }
+  }
+  
+  return { 
+    heightMap,
+    width,
+    height,
+    resolution
+  };
+}
+
+/**
+ * Validate course solvability using pathfinding
+ */
+function validateCourseSolvability(terrain, hazards, targets, startPosition) {
+  // Create a grid representation of the course for pathfinding
+  const { width, height } = terrain;
+  const grid = new Array(width);
+  
+  // Initialize grid with walkability values
+  for (let x = 0; x < width; x++) {
+    grid[x] = new Array(height);
+    
+    for (let z = 0; z < height; z++) {
+      // Check if this location is walkable (not a hazard, not a gap)
+      const elevation = getElevationAt(terrain, x, z);
+      const hasHazard = hazardAt(hazards, x, z);
+      
+      // A cell is walkable if it has valid elevation and no hazard
+      grid[x][z] = (elevation !== null && !hasHazard) ? 1 : 0;
+    }
+  }
+  
+  // Create pathfinding grid
+  const pfGrid = new PF.Grid(grid);
+  
+  // Test path to each target from start
+  for (const target of targets) {
+    const finder = new PF.AStarFinder({
+      allowDiagonal: true,
+      dontCrossCorners: true
+    });
+    
+    // Convert positions to grid coordinates
+    const startX = Math.floor(startPosition.x / terrain.resolution);
+    const startZ = Math.floor(startPosition.z / terrain.resolution);
+    const targetX = Math.floor(target.position.x / terrain.resolution);
+    const targetZ = Math.floor(target.position.z / terrain.resolution);
+    
+    // Find path
+    const path = finder.findPath(
+      startX, startZ,
+      targetX, targetZ,
+      pfGrid.clone()
+    );
+    
+    // If no path found to this target, course is not solvable
+    if (path.length === 0) {
+      return false;
+    }
+  }
+  
+  // If we've reached here, paths to all targets exist
+  return true;
+}
+
+/**
+ * Adjust course to ensure solvability
+ */
+function adjustCourseForSolvability(terrain, hazards, targets, startPosition, noise, difficulty) {
+  // Strategy 1: Remove problematic hazards
+  const updatedHazards = removeProblematicHazards(terrain, hazards, targets, startPosition);
+  
+  // Strategy 2: Add bridges between disconnected areas
+  const bridges = createBridgesBetweenAreas(terrain, updatedHazards, targets, startPosition);
+  
+  // Strategy 3: Reposition targets to more accessible locations
+  const newTargets = repositionTargets(terrain, updatedHazards, targets, startPosition, noise);
+  
+  // Validate again with our adjustments
+  const isSolvable = validateCourseSolvability(
+    terrain, 
+    [...updatedHazards, ...bridges], 
+    newTargets, 
+    startPosition
+  );
+  
+  // If still not solvable, simplify the course further
+  if (!isSolvable) {
+    return generateSimplifiedCourse(seed, difficulty, theme);
+  }
+  
+  return { 
+    terrain, 
+    hazards: [...updatedHazards, ...bridges], 
+    targets: newTargets, 
+    startPosition,
+    seed,
+    difficulty,
+    theme 
+  };
+}

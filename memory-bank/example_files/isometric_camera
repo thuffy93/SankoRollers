@@ -1,0 +1,122 @@
+/**
+ * Camera controller for Cosmic Rollers with authentic Kirby's Dream Course feel
+ */
+export class CameraController {
+  private camera: THREE.Camera;
+  private currentMode: CameraMode = CameraMode.FIXED;
+  private target: THREE.Vector3 = new THREE.Vector3(0, 0, 0);
+  private targetPosition: THREE.Vector3 = new THREE.Vector3(15, 15, 15);
+  private transitionStartTime: number = 0;
+  private transitionDuration: number = 1000; // ms
+  private startPosition: THREE.Vector3 = new THREE.Vector3();
+  private startTarget: THREE.Vector3 = new THREE.Vector3();
+  private ballVelocity: THREE.Vector3 | null = null;
+  
+  constructor(camera: THREE.Camera) {
+    this.camera = camera;
+    
+    // Position camera at true isometric angle
+    this.positionCameraIsometric(this.target, 25);
+    
+    // Set up game state listeners
+    this.setupStateListeners();
+  }
+  
+  /**
+   * Position camera at true isometric angle
+   */
+  private positionCameraIsometric(targetPoint: THREE.Vector3, distance: number = 25): void {
+    // Classic Dream Course angle - 45° in horizontal plane, 30° from ground
+    const angleHorizontal = Math.PI / 4;  // 45 degrees
+    const angleVertical = Math.PI / 6;    // 30 degrees
+    
+    // Position camera at fixed distance and angles
+    this.camera.position.x = targetPoint.x + Math.cos(angleHorizontal) * Math.cos(angleVertical) * distance;
+    this.camera.position.y = targetPoint.y + Math.sin(angleVertical) * distance; 
+    this.camera.position.z = targetPoint.z + Math.sin(angleHorizontal) * Math.cos(angleVertical) * distance;
+    
+    // Always look at the target point
+    this.camera.lookAt(targetPoint);
+  }
+  
+  /**
+   * Set up game state change listeners
+   */
+  private setupStateListeners(): void {
+    // When entering aiming state, move to aiming position
+    gameStateManager.onEnterState(GameState.AIMING, () => {
+      this.transitionTo(CameraMode.ORBIT);
+    });
+    
+    // When ball is rolling, follow the ball
+    gameStateManager.onEnterState(GameState.ROLLING, () => {
+      this.transitionTo(CameraMode.FOLLOW);
+    });
+    
+    // When back to idle, return to orbit mode
+    gameStateManager.onEnterState(GameState.IDLE, () => {
+      this.transitionTo(CameraMode.ORBIT);
+    });
+  }
+  
+  /**
+   * Update camera when following the ball
+   */
+  private updateFollowCamera(): void {
+    const config = PhysicsConfig.camera;
+    
+    // Calculate ideal camera position
+    const idealOffset = this.calculateCameraOffset();
+    const idealHeight = this.calculateCameraHeight();
+    
+    // Maintain fixed isometric angle but offset by calculated values
+    const angleHorizontal = Math.PI / 4;  // 45 degrees
+    const angleVertical = Math.PI / 6;    // 30 degrees
+    
+    // Calculate position maintaining fixed angle with offsets
+    const idealPosition = new THREE.Vector3(
+      this.target.x + Math.cos(angleHorizontal + idealOffset.x) * 
+        Math.cos(angleVertical) * config.followDistance,
+      this.target.y + Math.sin(angleVertical) * idealHeight,
+      this.target.z + Math.sin(angleHorizontal + idealOffset.y) * 
+        Math.cos(angleVertical) * config.followDistance
+    );
+    
+    // Smoothly interpolate to ideal position
+    this.camera.position.lerp(idealPosition, config.followLerp);
+    
+    // Look at the ball
+    this.camera.lookAt(this.target);
+  }
+  
+  /**
+   * Calculate camera offset based on ball velocity
+   */
+  private calculateCameraOffset(): THREE.Vector2 {
+    const config = PhysicsConfig.camera;
+    
+    // Default follow angles (small offsets to isometric angle)
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    // If we have access to ball velocity, position camera behind movement
+    if (this.ballVelocity && this.ballVelocity.length() > 0.5) {
+      // Normalize velocity in XZ plane
+      const velXZ = new THREE.Vector2(this.ballVelocity.x, this.ballVelocity.z);
+      
+      if (velXZ.length() > 0.5) {
+        velXZ.normalize();
+        
+        // Calculate angle offset based on movement direction
+        const angle = Math.atan2(velXZ.y, velXZ.x);
+        
+        // Position camera behind direction of movement
+        // Offset angle slightly to maintain isometric feel
+        offsetX = -(angle - Math.PI / 4) * 0.3;
+        offsetY = -(angle - Math.PI / 4) * 0.3;
+      }
+    }
+    
+    return new THREE.Vector2(offsetX, offsetY);
+  }
+}

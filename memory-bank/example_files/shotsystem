@@ -1,0 +1,627 @@
+import * as THREE from 'three';
+import RAPIER from '@dimforge/rapier3d-compat';
+import { GameState, gameStateManager } from '../../utils/gameState';
+import { EventType, eventsManager } from '../../utils/events';
+import { PhysicsConfig } from '../../utils/physicsConfig';
+import { InputState } from './types';
+import { TrajectoryVisualizer } from './TrajectoryVisualizer';
+
+/**
+ * Shot type enum (based on Kirby's Dream Course)
+ */
+export enum ShotType {
+  GROUNDER = 'GROUNDER', // Ball rolls along the ground (like Kirby's Dream Course)
+  FLY = 'FLY'            // Ball follows an arc trajectory (like Kirby's Dream Course)
+}
+
+/**
+ * Spin type enum (based on Kirby's Dream Course)
+ */
+export enum SpinType {
+  NONE = 'NONE',      // No spin
+  LEFT = 'LEFT',      // Left horizontal spin
+  RIGHT = 'RIGHT',    // Right horizontal spin
+  TOP = 'TOP',        // Top spin (for FLY shots)
+  BACK = 'BACK'       // Back spin (for FLY shots)
+}
+
+/**
+ * Controls shot mechanics and ball physics
+ * Enhanced to better match Kirby's Dream Course mechanics
+ */
+export class ShotController {
+  private playerBallBody: RAPIER.RigidBody;
+  private world: RAPIER.World;
+  private trajectoryVisualizer: TrajectoryVisualizer;
+  private inputState: InputState = {
+    power: 0,
+    angle: 0,
+    spinning: false,
+    spinDirection: { x: 0, y: 0 }
+  };
+  
+  // Kirby's Dream Course style shot control parameters
+  private oscillateSpeed: number = 0.05; // Speed of the power meter oscillation
+  private powerIncreasing: boolean = true; // Whether power is going up or down
+  private targetPadding: number = 0.6; // Distance to stay away from target when hit
+  private hitPositionOffset: { x: number, y: number } = { x: 0, y: 0 }; // Offset for Kirby-style hit position
+  private maxBounces: number = 3; // Maximum mid-shot bounces like in Dream Course
+  private currentBounces: number = 0;
+  private canBounce: boolean = true; // Whether bounce ability is available
+  private bounceTimeout: number = 300; // Minimum time between bounces (ms)
+  
+  // Shot type and spin (Kirby's Dream Course style)
+  private shotType: ShotType = ShotType.GROUNDER; // Default to GROUNDER
+  private spinType: SpinType = SpinType.NONE; // Default to no spin
+  private spinIntensity: number = 0; // 0-1 range for spin intensity
+  
+  // Super shot (100% power in Kirby's Dream Course)
+  private isSuperShot: boolean = false; // Whether the current shot is a "super shot" (100% power)
+  
+  constructor(
+    scene: THREE.Scene, 
+    playerBallBody: RAPIER.RigidBody,
+    world: RAPIER.World
+  ) {
+    this.playerBallBody = playerBallBody;
+    this.world = world;
+    this.trajectoryVisualizer = new TrajectoryVisualizer(scene);
+    
+    // Set up event listeners
+    this.setupEventListeners();
+    
+    // Set up game state listeners
+    this.setupStateListeners();
+  }
+  
+  /**
+   * Set up event listeners
+   */
+  private setupEventListeners(): void {
+    // Listen for input events
+    eventsManager.subscribe(EventType.ANGLE_CHANGED, (payload) => {
+      this.inputState.angle = payload.angle;
+      this.updateTrajectoryPreview();
+    });
+    
+    eventsManager.subscribe(EventType.POWER_CHANGED, (payload) => {
+      this.inputState.power = payload.power;
+      
+      // Check for super shot (100% power)
+      this.isSuperShot = this.inputState.power >= 99;
+      
+      this.updateTrajectoryPreview();
+    });
+    
+    eventsManager.subscribe(EventType.SPIN_UPDATED, (payload) => {
+      this.inputState.spinning = payload.spinning;
+      this.inputState.spinDirection = payload.direction;
+      
+      // Update spin type based on direction (Kirby's Dream Course style)
+      this.updateSpinType(payload.direction);
+      
+      // Update hit position offset for Kirby-style hit control
+      this.hitPositionOffset = {
+        x: this.inputState.spinDirection.x * 0.3,
+        y: this.inputState.spinDirection.y * 0.3
+      };
+      
+      // Update trajectory to show spin effect
+      this.updateTrajectoryPreview();
+    });
+    
+    eventsManager.subscribe(EventType.SHOT_EXECUTE, (payload) => {
+      this.executeShot();
+    });
+    
+    eventsManager.subscribe(EventType.SHOT_BOUNCE_REQUESTED, () => {
+      this.applyBounce();
+    });
+    
+    // Toggle shot type between GROUNDER and FLY on key press
+    eventsManager.subscribe(EventType.SHOT_TYPE_TOGGLE, (payload) => {
+      this.toggleShotType();
+    });
+    
+    // Reset bounce count when ball stops
+    eventsManager.subscribe(EventType.BALL_STOPPED, () => {
+      this.currentBounces = 0;
+      this.canBounce = true;
+    });
+  }
+  
+  /**
+   * Set up game state listeners
+   */
+  private setupStateListeners(): void {
+    // Reset input state when entering IDLE state
+    gameStateManager.onEnterState(GameState.IDLE, () => {
+      this.inputState.power = 0;
+      this.inputState.angle = 0;
+      this.inputState.spinning = false;
+      this.inputState.spinDirection = { x: 0, y: 0 };
+      this.trajectoryVisualizer.hideTrajectory();
+      
+      // Reset Kirby-style parameters
+      this.powerIncreasing = true;
+      this.hitPositionOffset = { x: 0, y: 0 };
+      this.currentBounces = 0;
+      this.canBounce = true;
+      this.spinType = SpinType.NONE;
+      this.spinIntensity = 0;
+    });
+    
+    // Show trajectory when entering AIMING state
+    gameStateManager.onEnterState(GameState.AIMING, () => {
+      this.updateTrajectoryPreview();
+    });
+    
+    // Hide trajectory when leaving AIMING or CHARGING state
+    gameStateManager.onExitState(GameState.AIMING, () => {
+      if (!gameStateManager.isState(GameState.CHARGING)) {
+        this.trajectoryVisualizer.hideTrajectory();
+      }
+    });
+    
+    gameStateManager.onExitState(GameState.CHARGING, () => {
+      this.trajectoryVisualizer.hideTrajectory();
+    });
+    
+    // Start monitoring ball velocity when in ROLLING state
+    gameStateManager.onEnterState(GameState.ROLLING, () => {
+      this.startBallVelocityCheck();
+    });
+  }
+  
+  /**
+   * Toggle between GROUNDER and FLY shot types (Kirby's Dream Course style)
+   */
+  private toggleShotType(): void {
+    // Only toggle in AIMING or CHARGING states
+    if (gameStateManager.isState(GameState.AIMING) || gameStateManager.isState(GameState.CHARGING)) {
+      this.shotType = this.shotType === ShotType.GROUNDER ? ShotType.FLY : ShotType.GROUNDER;
+      
+      // Update trajectory preview to reflect new shot type
+      this.updateTrajectoryPreview();
+      
+      // Publish event for UI updates
+      eventsManager.publish(EventType.SHOT_TYPE_CHANGED, { shotType: this.shotType });
+      
+      console.log(`Shot type switched to: ${this.shotType}`);
+    }
+  }
+  
+  /**
+   * Update spin type based on direction input (Kirby's Dream Course style)
+   */
+  private updateSpinType(direction: { x: number, y: number }): void {
+    // For FLY shots, allow TOP and BACK spin
+    if (this.shotType === ShotType.FLY) {
+      if (direction.y > 0) {
+        this.spinType = SpinType.TOP;
+        this.spinIntensity = Math.abs(direction.y);
+      } 
+      else if (direction.y < 0) {
+        this.spinType = SpinType.BACK;
+        this.spinIntensity = Math.abs(direction.y);
+      }
+      // Horizontal spin for FLY shots takes precedence if no vertical input
+      else if (direction.x > 0) {
+        this.spinType = SpinType.RIGHT;
+        this.spinIntensity = Math.abs(direction.x);
+      }
+      else if (direction.x < 0) {
+        this.spinType = SpinType.LEFT;
+        this.spinIntensity = Math.abs(direction.x);
+      }
+      else {
+        this.spinType = SpinType.NONE;
+        this.spinIntensity = 0;
+      }
+    }
+    // For GROUNDER shots, only allow LEFT and RIGHT spin
+    else {
+      if (direction.x > 0) {
+        this.spinType = SpinType.RIGHT;
+        this.spinIntensity = Math.abs(direction.x);
+      }
+      else if (direction.x < 0) {
+        this.spinType = SpinType.LEFT;
+        this.spinIntensity = Math.abs(direction.x);
+      }
+      else {
+        this.spinType = SpinType.NONE;
+        this.spinIntensity = 0;
+      }
+    }
+    
+    // Publish spin update event
+    eventsManager.publish(EventType.SPIN_TYPE_CHANGED, { 
+      spinType: this.spinType,
+      spinIntensity: this.spinIntensity
+    });
+  }
+  
+  /**
+   * Update the trajectory preview
+   */
+  private updateTrajectoryPreview(): void {
+    const position = this.playerBallBody.translation();
+    const positionVector = new THREE.Vector3(position.x, position.y, position.z);
+    
+    // Update trajectory visualization
+    if (gameStateManager.isState(GameState.AIMING) || 
+        gameStateManager.isState(GameState.CHARGING)) {
+      this.trajectoryVisualizer.showTrajectory(
+        positionVector,
+        this.inputState.angle,
+        this.inputState.power,
+        this.hitPositionOffset, // Pass hit position for accurate trajectory
+        this.shotType,          // Pass shot type for accurate trajectory
+        this.spinType,          // Pass spin type for accurate trajectory
+        this.spinIntensity,     // Pass spin intensity
+        this.isSuperShot        // Pass whether this is a super shot (100% power)
+      );
+    }
+  }
+  
+  /**
+   * Execute shot based on current input state
+   * Enhanced to match Kirby's Dream Course shot mechanics
+   */
+  private executeShot(): void {
+    const shotPhysics = PhysicsConfig.shot;
+    const force = this.inputState.power * shotPhysics.powerMultiplier;
+    
+    // Calculate direction vector from angle
+    const directionX = Math.cos(this.inputState.angle);
+    const directionZ = Math.sin(this.inputState.angle);
+    
+    // Apply hit position offset for Kirby-style hit control
+    // This affects the direction of the shot, simulating hitting different spots
+    const adjustedDirX = directionX + this.hitPositionOffset.x * 0.3;
+    const adjustedDirZ = directionZ + this.hitPositionOffset.y * 0.3;
+    
+    // Apply different physics based on shot type (GROUNDER vs FLY)
+    if (this.shotType === ShotType.GROUNDER) {
+      // GROUNDER shots have minimal upward component and follow terrain
+      this.playerBallBody.applyImpulse(
+        { 
+          x: adjustedDirX * force,
+          y: 0.05 * force, // Minimal upward component for grounders
+          z: adjustedDirZ * force 
+        },
+        true
+      );
+      
+      // Apply more friction for grounders to help them stick to terrain
+      // This is done by changing the collider's friction temporarily
+      const colliders = [];
+      this.playerBallBody.forEachCollider(collider => colliders.push(collider));
+      
+      if (colliders.length > 0) {
+        const ballCollider = colliders[0];
+        const originalFriction = ballCollider.friction();
+        ballCollider.setFriction(originalFriction * 1.5);
+        
+        // Reset friction after a short delay
+        setTimeout(() => {
+          if (ballCollider.isValid()) {
+            ballCollider.setFriction(originalFriction);
+          }
+        }, 500);
+      }
+    } 
+    else { // FLY shot
+      // FLY shots have significant upward component and follow arc trajectories
+      this.playerBallBody.applyImpulse(
+        { 
+          x: adjustedDirX * force,
+          y: 0.4 * force, // Higher upward component for fly shots
+          z: adjustedDirZ * force 
+        },
+        true
+      );
+      
+      // Apply less friction for fly shots (more bouncy)
+      const colliders = [];
+      this.playerBallBody.forEachCollider(collider => colliders.push(collider));
+      
+      if (colliders.length > 0) {
+        const ballCollider = colliders[0];
+        const originalFriction = ballCollider.friction();
+        const originalRestitution = ballCollider.restitution();
+        
+        ballCollider.setFriction(originalFriction * 0.7);
+        ballCollider.setRestitution(originalRestitution * 1.3);
+        
+        // Reset after a short delay
+        setTimeout(() => {
+          if (ballCollider.isValid()) {
+            ballCollider.setFriction(originalFriction);
+            ballCollider.setRestitution(originalRestitution);
+          }
+        }, 1000);
+      }
+    }
+    
+    // Apply spin based on spin type and intensity
+    this.applySpinForce(force);
+    
+    // Reset bounce count for new shot
+    this.currentBounces = 0;
+    this.canBounce = true;
+    
+    // Publish shot started event with enhanced Kirby-style details
+    eventsManager.publish(EventType.SHOT_STARTED, {
+      power: this.inputState.power,
+      angle: this.inputState.angle,
+      spinning: this.inputState.spinning,
+      spinDirection: this.inputState.spinDirection,
+      hitPosition: this.hitPositionOffset,
+      shotType: this.shotType,
+      spinType: this.spinType,
+      superShot: this.isSuperShot
+    });
+    
+    // Transition to rolling state
+    gameStateManager.setState(GameState.ROLLING);
+    
+    console.log(`Shot executed: type=${this.shotType}, spin=${this.spinType}, power=${this.inputState.power}, angle=${this.inputState.angle.toFixed(2)}`);
+  }
+  
+  /**
+   * Apply appropriate spin force based on spin type (Kirby's Dream Course style)
+   */
+  private applySpinForce(force: number): void {
+    const shotPhysics = PhysicsConfig.shot;
+    
+    if (!this.inputState.spinning || this.spinType === SpinType.NONE) {
+      return; // No spin to apply
+    }
+    
+    const spinForce = force * shotPhysics.spinMultiplier * this.spinIntensity * 2;
+    
+    switch (this.spinType) {
+      case SpinType.LEFT:
+        // Apply torque for left spin - affects horizontal movement
+        this.playerBallBody.applyTorqueImpulse(
+          { x: 0, y: spinForce, z: 0 },
+          true
+        );
+        // Also apply a slight linear force to enhance the curve effect
+        this.playerBallBody.applyImpulse(
+          { x: -spinForce * 0.15, y: 0, z: 0 },
+          true
+        );
+        break;
+        
+      case SpinType.RIGHT:
+        // Apply torque for right spin - affects horizontal movement
+        this.playerBallBody.applyTorqueImpulse(
+          { x: 0, y: -spinForce, z: 0 },
+          true
+        );
+        // Also apply a slight linear force to enhance the curve effect
+        this.playerBallBody.applyImpulse(
+          { x: spinForce * 0.15, y: 0, z: 0 },
+          true
+        );
+        break;
+        
+      case SpinType.TOP:
+        // Apply top spin - increases forward momentum after bounces
+        this.playerBallBody.applyTorqueImpulse(
+          { x: -spinForce, y: 0, z: 0 },
+          true
+        );
+        // Also tag the ball for special handling during collisions
+        (this.playerBallBody as any).hasTopSpin = true;
+        (this.playerBallBody as any).topSpinFactor = this.spinIntensity;
+        
+        // Reset the flag after a time
+        setTimeout(() => {
+          if (this.playerBallBody.isValid()) {
+            (this.playerBallBody as any).hasTopSpin = false;
+          }
+        }, 3000);
+        break;
+        
+      case SpinType.BACK:
+        // Apply back spin - decreases momentum and adds height after bounces
+        this.playerBallBody.applyTorqueImpulse(
+          { x: spinForce, y: 0, z: 0 },
+          true
+        );
+        // Also tag the ball for special handling during collisions
+        (this.playerBallBody as any).hasBackSpin = true;
+        (this.playerBallBody as any).backSpinFactor = this.spinIntensity;
+        
+        // Reset the flag after a time
+        setTimeout(() => {
+          if (this.playerBallBody.isValid()) {
+            (this.playerBallBody as any).hasBackSpin = false;
+          }
+        }, 3000);
+        break;
+    }
+  }
+  
+  /**
+   * Apply bounce impulse during a shot (Kirby's Dream Course style)
+   */
+  private applyBounce(): void {
+    if (!gameStateManager.isState(GameState.ROLLING) || !this.canBounce) return;
+    
+    // Check if we've exceeded max bounces
+    if (this.currentBounces >= this.maxBounces) return;
+    
+    const shotPhysics = PhysicsConfig.shot;
+    const velocity = this.playerBallBody.linvel();
+    
+    // Only allow bounce if moving slowly enough (prevents excessive bouncing at high speeds)
+    const speed = Math.sqrt(
+      velocity.x * velocity.x + 
+      velocity.y * velocity.y + 
+      velocity.z * velocity.z
+    );
+    
+    // Different bounce mechanics based on current state
+    if (speed < 15) {
+      // Determine bounce force based on current velocity and shot type
+      let bounceForce = shotPhysics.bounceImpulse;
+      
+      // FLY shots get extra bounce height (Kirby's Dream Course style)
+      if (this.shotType === ShotType.FLY) {
+        bounceForce *= 1.2;
+      }
+      
+      // Higher bounce if already moving upward (like in Dream Course)
+      if (velocity.y > 0) {
+        bounceForce *= 1.2;
+      }
+      
+      // Add horizontal momentum preservation like in Dream Course
+      this.playerBallBody.applyImpulse(
+        { 
+          x: velocity.x * 0.1, // Preserve some horizontal momentum
+          y: bounceForce, 
+          z: velocity.z * 0.1  // Preserve some horizontal momentum
+        },
+        true
+      );
+      
+      // Increment bounce count
+      this.currentBounces++;
+      
+      // Add cooldown to prevent spam-bouncing
+      this.canBounce = false;
+      setTimeout(() => {
+        this.canBounce = true;
+      }, this.bounceTimeout);
+      
+      // Publish bounce event
+      eventsManager.publish(EventType.SHOT_BOUNCE, { 
+        position: this.playerBallBody.translation(),
+        bounceCount: this.currentBounces,
+        shotType: this.shotType
+      });
+    }
+  }
+  
+  /**
+   * Update power meter based on Kirby's Dream Course oscillation
+   */
+  public updatePowerMeter(): number {
+    // Kirby-style oscillating power meter
+    if (gameStateManager.isState(GameState.CHARGING)) {
+      // In Kirby's Dream Course, the power oscillates up and down automatically
+      if (this.powerIncreasing) {
+        this.inputState.power += 2;
+        if (this.inputState.power >= 100) {
+          this.powerIncreasing = false;
+          
+          // Check for super shot (100% power)
+          this.isSuperShot = true;
+          
+          // Visual pulse for super shot
+          eventsManager.publish(EventType.SUPER_SHOT_READY, {});
+        }
+      } else {
+        this.inputState.power -= 2;
+        if (this.inputState.power <= 0) {
+          this.powerIncreasing = true;
+          this.isSuperShot = false;
+        }
+      }
+      
+      // Publish power change event
+      eventsManager.publish(EventType.POWER_CHANGED, { 
+        power: this.inputState.power,
+        isSuperShot: this.isSuperShot 
+      });
+      
+      // Update trajectory with new power
+      this.updateTrajectoryPreview();
+    }
+    
+    return this.inputState.power;
+  }
+  
+  /**
+   * Start checking ball velocity to determine when it stops
+   */
+  private startBallVelocityCheck(): void {
+    const checkVelocity = () => {
+      if (!gameStateManager.isState(GameState.ROLLING)) return;
+      
+      const velocity = this.playerBallBody.linvel();
+      const speed = Math.sqrt(
+        velocity.x * velocity.x + 
+        velocity.y * velocity.y + 
+        velocity.z * velocity.z
+      );
+      
+      // Check if ball has stopped
+      if (speed < PhysicsConfig.shot.minVelocityToStop) {
+        // Ensure ball has actually stopped by zeroing velocity
+        this.playerBallBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+        this.playerBallBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+        
+        // Publish ball stopped event
+        eventsManager.publish(EventType.BALL_STOPPED, {
+          position: this.playerBallBody.translation()
+        });
+        
+        // Transition back to idle state
+        gameStateManager.setState(GameState.IDLE);
+      } else {
+        // Continue checking
+        requestAnimationFrame(checkVelocity);
+      }
+    };
+    
+    // Start checking
+    requestAnimationFrame(checkVelocity);
+  }
+  
+  /**
+   * Perform a Kirby-style stop when hitting a target
+   */
+  public stopOnTargetHit(): void {
+    // In Kirby's Dream Course, Kirby stops when hitting a target
+    this.playerBallBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.playerBallBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    
+    // Transition back to idle state
+    gameStateManager.setState(GameState.IDLE);
+  }
+  
+  /**
+   * Get current shot type
+   */
+  public getShotType(): ShotType {
+    return this.shotType;
+  }
+  
+  /**
+   * Get current spin type
+   */
+  public getSpinType(): SpinType {
+    return this.spinType;
+  }
+  
+  /**
+   * Clean up resources
+   */
+  public dispose(): void {
+    this.trajectoryVisualizer.dispose();
+  }
+  
+  /**
+   * Get current input state
+   */
+  public getInputState(): InputState {
+    return { ...this.inputState };
+  }
+}

@@ -1,0 +1,578 @@
+import * as THREE from 'three';
+import { PhysicsConfig } from '../../utils/physicsConfig';
+import { ShotType, SpinType } from './ShotController';
+
+/**
+ * Visualizes the predicted trajectory of a shot
+ * Enhanced to better match Kirby's Dream Course trajectory visualization
+ */
+export class TrajectoryVisualizer {
+  private scene: THREE.Scene;
+  private line: THREE.Line;
+  private points: THREE.Vector3[] = [];
+  private maxPoints: number = 30;
+  private gravity: { x: number; y: number; z: number };
+  private bounceIndicators: THREE.Mesh[] = [];
+  private predictedLandingIndicator: THREE.Mesh | null = null;
+  
+  constructor(scene: THREE.Scene) {
+    this.scene = scene;
+    this.gravity = PhysicsConfig.world.gravity;
+    
+    // Create line geometry with gradients
+    const geometry = new THREE.BufferGeometry();
+    const material = new THREE.LineBasicMaterial({ 
+      color: 0xffff00,
+      opacity: 0.8,
+      transparent: true,
+      linewidth: 3
+    });
+    
+    this.line = new THREE.Line(geometry, material);
+    this.scene.add(this.line);
+    
+    // Initially hide
+    this.line.visible = false;
+  }
+  
+  /**
+   * Show trajectory based on shot parameters
+   * Enhanced to support Kirby's Dream Course shot types and spin
+   */
+  public showTrajectory(
+    position: THREE.Vector3, 
+    angle: number, 
+    power: number,
+    hitPositionOffset: { x: number, y: number } = { x: 0, y: 0 },
+    shotType: ShotType = ShotType.GROUNDER,
+    spinType: SpinType = SpinType.NONE,
+    spinIntensity: number = 0,
+    isSuperShot: boolean = false
+  ): void {
+    const shotPhysics = PhysicsConfig.shot;
+    const force = power * shotPhysics.powerMultiplier;
+    
+    // Calculate direction vector from angle
+    const directionX = Math.cos(angle);
+    const directionZ = Math.sin(angle);
+    
+    // Apply hit position offset (Kirby's Dream Course style)
+    const adjustedDirX = directionX + hitPositionOffset.x * 0.3;
+    const adjustedDirZ = directionZ + hitPositionOffset.y * 0.3;
+    
+    // Calculate initial velocity based on shot type
+    let initialVelocity;
+    
+    if (shotType === ShotType.GROUNDER) {
+      // GROUNDER shots have minimal upward component
+      initialVelocity = new THREE.Vector3(
+        adjustedDirX * force,
+        0.05 * force, // Minimal upward component for grounders
+        adjustedDirZ * force
+      );
+    } else { // FLY shot
+      // FLY shots have significant upward component
+      initialVelocity = new THREE.Vector3(
+        adjustedDirX * force,
+        0.4 * force, // Higher upward component for fly shots
+        adjustedDirZ * force
+      );
+    }
+    
+    // Apply spin effects to initial velocity (Kirby's Dream Course style)
+    this.applySpinToVelocity(initialVelocity, spinType, spinIntensity, force);
+    
+    // Generate trajectory points using projectile motion simulation
+    this.generateTrajectoryPoints(position, initialVelocity, shotType, spinType, spinIntensity, isSuperShot);
+    
+    // Update line geometry
+    this.updateLine(power, shotType);
+    
+    // Show line
+    this.line.visible = true;
+    
+    // Show landing indicator at the predicted landing spot
+    this.showPredictedLanding(shotType);
+  }
+  
+  /**
+   * Apply spin effects to velocity vector (Kirby's Dream Course style)
+   */
+  private applySpinToVelocity(
+    velocity: THREE.Vector3,
+    spinType: SpinType,
+    spinIntensity: number,
+    force: number
+  ): void {
+    // Scale factor for spin effects
+    const spinFactor = spinIntensity * 0.3;
+    
+    switch (spinType) {
+      case SpinType.LEFT:
+        // Left spin curves the trajectory left
+        velocity.x -= force * spinFactor;
+        break;
+        
+      case SpinType.RIGHT:
+        // Right spin curves the trajectory right
+        velocity.x += force * spinFactor;
+        break;
+        
+      case SpinType.TOP:
+        // Top spin increases forward momentum
+        // Scale the existing x and z components
+        velocity.x *= 1 + spinFactor;
+        velocity.z *= 1 + spinFactor;
+        // Reduce the upward component
+        velocity.y *= 0.8;
+        break;
+        
+      case SpinType.BACK:
+        // Back spin reduces forward momentum and increases height
+        // Scale down the existing x and z components
+        velocity.x *= 1 - spinFactor * 0.5;
+        velocity.z *= 1 - spinFactor * 0.5;
+        // Increase the upward component
+        velocity.y *= 1.2;
+        break;
+    }
+  }
+  
+  /**
+   * Generate trajectory points using physics simulation
+   * Enhanced for Kirby's Dream Course shot types and spin effects
+   */
+  private generateTrajectoryPoints(
+    startPos: THREE.Vector3, 
+    initialVelocity: THREE.Vector3,
+    shotType: ShotType,
+    spinType: SpinType,
+    spinIntensity: number,
+    isSuperShot: boolean
+  ): void {
+    // Clear previous points
+    this.points = [];
+    
+    // Clear previous bounce indicators
+    this.clearBounceIndicators();
+    
+    // Add starting point
+    this.points.push(startPos.clone());
+    
+    // Simulate trajectory
+    const pos = startPos.clone();
+    const vel = initialVelocity.clone();
+    const timestep = 0.1; // Simulation timestep
+    
+    // Kirby's Dream Course parameters
+    let bounceCount = 0;
+    const maxBounces = shotType === ShotType.FLY ? 4 : 2; // FLY shots bounce more
+    let hasHitGround = false;
+    let lastBouncePoint = null;
+    
+    // Super Shot parameters (100% power in Kirby's Dream Course)
+    // Super shots follow the guide line more precisely
+    const gravityFactor = isSuperShot ? 0.7 : 1.0;
+    
+    // Simulation loop
+    for (let i = 0; i < this.maxPoints; i++) {
+      // Update velocity (apply gravity)
+      // Super shots are less affected by gravity
+      vel.x += this.gravity.x * timestep * gravityFactor;
+      vel.y += this.gravity.y * timestep * gravityFactor;
+      vel.z += this.gravity.z * timestep * gravityFactor;
+      
+      // Apply spin effects as the trajectory progresses
+      this.applyProgressiveSpin(vel, spinType, spinIntensity, hasHitGround, bounceCount);
+      
+      // Apply air resistance (slight damping)
+      vel.x *= 0.995;
+      vel.z *= 0.995;
+      
+      // Update position
+      pos.x += vel.x * timestep;
+      pos.y += vel.y * timestep;
+      pos.z += vel.z * timestep;
+      
+      // Bounce detection for GROUNDER and FLY shots
+      if (pos.y <= 0 && vel.y < 0) {
+        bounceCount++;
+        hasHitGround = true;
+        lastBouncePoint = pos.clone();
+        
+        // Create bounce indicator
+        this.addBounceIndicator(pos.clone());
+        
+        // Calculate bounce response based on shot type and spin
+        if (shotType === ShotType.GROUNDER) {
+          // GROUNDER shots have minimal bounce
+          vel.y = -vel.y * 0.3; // 30% energy retained
+          
+          // Apply more friction to x/z velocity
+          vel.x *= 0.7;
+          vel.z *= 0.7;
+        } else { // FLY shot
+          // FLY shots have significant bounce
+          vel.y = -vel.y * 0.6; // 60% energy retained
+          
+          // Apply less friction to x/z velocity
+          vel.x *= 0.8;
+          vel.z *= 0.8;
+          
+          // Apply spin effects to bounce
+          if (spinType === SpinType.TOP) {
+            // Top spin increases forward momentum after bounce
+            vel.x *= 1.2;
+            vel.z *= 1.2;
+            vel.y *= 0.7; // Lower bounce
+          } else if (spinType === SpinType.BACK) {
+            // Back spin decreases forward momentum but increases bounce height
+            vel.x *= 0.7;
+            vel.z *= 0.7;
+            vel.y *= 1.3; // Higher bounce
+          }
+        }
+        
+        // Prevent getting stuck in ground
+        pos.y = 0.01;
+        
+        // Stop after max bounces
+        if (bounceCount >= maxBounces) {
+          // Simulate rolling to a stop (for GROUNDER shots)
+          if (shotType === ShotType.GROUNDER) {
+            this.simulateRollingToStop(pos, vel, spinType, spinIntensity);
+          }
+          break;
+        }
+      }
+      
+      // Add point to trajectory
+      this.points.push(pos.clone());
+      
+      // Stop if velocity becomes too small after at least one bounce
+      if (vel.length() < 0.5 && hasHitGround) {
+        break;
+      }
+    }
+  }
+  
+  /**
+   * Simulate rolling to a stop for GROUNDER shots (Kirby's Dream Course style)
+   */
+  private simulateRollingToStop(
+    startPos: THREE.Vector3,
+    startVel: THREE.Vector3,
+    spinType: SpinType,
+    spinIntensity: number
+  ): void {
+    // For GROUNDER shots, simulate rolling to a stop with gradual deceleration
+    const pos = startPos.clone();
+    const vel = startVel.clone();
+    const timestep = 0.1;
+    
+    // Calculate rolling distance based on speed and spin
+    const initialSpeed = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+    const rollingFactor = 0.95; // Deceleration factor per step
+    
+    // Adjust for spin
+    let spinRollingBonus = 1.0;
+    if (spinType === SpinType.LEFT || spinType === SpinType.RIGHT) {
+      // Horizontal spin increases rolling distance slightly
+      spinRollingBonus = 1.0 + spinIntensity * 0.3;
+    } else if (spinType === SpinType.TOP) {
+      // Top spin significantly increases rolling distance
+      spinRollingBonus = 1.0 + spinIntensity * 0.6;
+    } else if (spinType === SpinType.BACK) {
+      // Back spin decreases rolling distance
+      spinRollingBonus = 1.0 - spinIntensity * 0.4;
+    }
+    
+    // Add rolling points
+    let currentSpeed = initialSpeed;
+    let maxRollingPoints = 20;
+    
+    // Apply spin effects to direction (curve)
+    const spinCurveFactor = spinIntensity * 0.03;
+    let spinCurvature = 0;
+    
+    if (spinType === SpinType.LEFT) {
+      spinCurvature = -spinCurveFactor;
+    } else if (spinType === SpinType.RIGHT) {
+      spinCurvature = spinCurveFactor;
+    }
+    
+    for (let i = 0; i < maxRollingPoints && currentSpeed > 0.05; i++) {
+      // Update velocity (gradual deceleration)
+      currentSpeed *= rollingFactor;
+      
+      // Apply spin curve effect
+      if (spinCurvature !== 0) {
+        // Rotate velocity vector to create curved path
+        const angle = spinCurvature * (1.0 - currentSpeed / initialSpeed);
+        const cosAngle = Math.cos(angle);
+        const sinAngle = Math.sin(angle);
+        
+        const oldVelX = vel.x;
+        vel.x = vel.x * cosAngle - vel.z * sinAngle;
+        vel.z = oldVelX * sinAngle + vel.z * cosAngle;
+      }
+      
+      // Normalize and scale by current speed
+      const velLength = Math.sqrt(vel.x * vel.x + vel.z * vel.z);
+      if (velLength > 0) {
+        vel.x = (vel.x / velLength) * currentSpeed;
+        vel.z = (vel.z / velLength) * currentSpeed;
+      }
+      
+      // Update position
+      pos.x += vel.x * timestep * spinRollingBonus;
+      pos.y = 0.01; // Stay just above ground
+      pos.z += vel.z * timestep * spinRollingBonus;
+      
+      // Add point
+      this.points.push(pos.clone());
+    }
+  }
+  
+  /**
+   * Apply progressive spin effects as the trajectory continues
+   */
+  private applyProgressiveSpin(
+    velocity: THREE.Vector3,
+    spinType: SpinType,
+    spinIntensity: number,
+    hasHitGround: boolean,
+    bounceCount: number
+  ): void {
+    // Skip if no spin or no intensity
+    if (spinType === SpinType.NONE || spinIntensity <= 0) {
+      return;
+    }
+    
+    // Spin effects are stronger after bounces
+    const postBounceFactor = hasHitGround ? 1.0 + (bounceCount * 0.2) : 1.0;
+    const effectiveIntensity = spinIntensity * postBounceFactor * 0.01;
+    
+    switch (spinType) {
+      case SpinType.LEFT:
+        // Progressive curve to the left
+        velocity.x -= velocity.length() * effectiveIntensity;
+        break;
+        
+      case SpinType.RIGHT:
+        // Progressive curve to the right
+        velocity.x += velocity.length() * effectiveIntensity;
+        break;
+        
+      case SpinType.TOP:
+        // Top spin increases forward momentum progressively
+        if (hasHitGround) {
+          const forwardBoost = velocity.length() * effectiveIntensity;
+          // Boost in the direction of horizontal movement
+          const horizLength = Math.sqrt(velocity.x * velocity.x + velocity.z * velocity.z);
+          if (horizLength > 0) {
+            velocity.x += (velocity.x / horizLength) * forwardBoost;
+            velocity.z += (velocity.z / horizLength) * forwardBoost;
+          }
+        }
+        break;
+        
+      case SpinType.BACK:
+        // Back spin decreases forward momentum progressively
+        if (hasHitGround && bounceCount > 0) {
+          const backwardFactor = 1.0 - effectiveIntensity;
+          velocity.x *= backwardFactor;
+          velocity.z *= backwardFactor;
+        }
+        break;
+    }
+  }
+  
+  /**
+   * Add a bounce indicator at position (Kirby's Dream Course style)
+   */
+  private addBounceIndicator(position: THREE.Vector3): void {
+    // Create circle at bounce point - styled like Kirby's Dream Course
+    const geometry = new THREE.RingGeometry(0.1, 0.2, 16);
+    const material = new THREE.MeshBasicMaterial({ 
+      color: 0xffaa00, // Yellow stars
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8
+    });
+    
+    const indicator = new THREE.Mesh(geometry, material);
+    indicator.position.copy(position);
+    indicator.position.y += 0.01; // Just above ground
+    indicator.rotation.x = Math.PI / 2; // Flat on ground
+    
+    this.scene.add(indicator);
+    this.bounceIndicators.push(indicator);
+  }
+  
+  /**
+   * Add an indicator showing the predicted landing spot (Kirby's Dream Course style)
+   */
+  private showPredictedLanding(shotType: ShotType): void {
+    // Clear existing landing indicator
+    if (this.predictedLandingIndicator) {
+      this.scene.remove(this.predictedLandingIndicator);
+      this.predictedLandingIndicator.geometry.dispose();
+      (this.predictedLandingIndicator.material as THREE.Material).dispose();
+      this.predictedLandingIndicator = null;
+    }
+    
+    if (this.points.length < 2) return;
+    
+    // Find the last point that's at ground level (y ≈ 0)
+    let landingPoint = this.points[this.points.length - 1].clone();
+    for (let i = 1; i < this.points.length; i++) {
+      if (this.points[i].y <= 0.1) {
+        landingPoint = this.points[i].clone();
+        landingPoint.y = 0.01; // Ensure it's just above ground
+        break;
+      }
+    }
+    
+    // Create a landing indicator based on shot type
+    let geometry;
+    if (shotType === ShotType.GROUNDER) {
+      // For GROUNDER shots, show a circular target
+      geometry = new THREE.CircleGeometry(0.3, 16);
+    } else {
+      // For FLY shots, show a ring (like in Kirby's Dream Course)
+      geometry = new THREE.RingGeometry(0.2, 0.4, 16);
+    }
+    
+    const material = new THREE.MeshBasicMaterial({ 
+      color: shotType === ShotType.GROUNDER ? 0x00ff00 : 0xff9900, // Green for GROUNDER, orange for FLY
+      transparent: true,
+      opacity: 0.6,
+      side: THREE.DoubleSide
+    });
+    
+    this.predictedLandingIndicator = new THREE.Mesh(geometry, material);
+    this.predictedLandingIndicator.position.copy(landingPoint);
+    this.predictedLandingIndicator.rotation.x = Math.PI / 2; // Flat on ground
+    
+    this.scene.add(this.predictedLandingIndicator);
+    
+    // Add pulsing animation for the landing indicator
+    this.animateLandingIndicator();
+  }
+  
+  /**
+   * Animate the landing indicator with a pulsing effect (Kirby's Dream Course style)
+   */
+  private animateLandingIndicator(): void {
+    if (!this.predictedLandingIndicator) return;
+    
+    let scale = 1.0;
+    let increasing = true;
+    
+    const animate = () => {
+      if (!this.predictedLandingIndicator || !this.line.visible) return;
+      
+      // Pulse scale up and down
+      if (increasing) {
+        scale += 0.02;
+        if (scale >= 1.3) increasing = false;
+      } else {
+        scale -= 0.02;
+        if (scale <= 0.7) increasing = true;
+      }
+      
+      this.predictedLandingIndicator.scale.set(scale, scale, scale);
+      
+      // Continue animation if the trajectory is still visible
+      if (this.line.visible) {
+        requestAnimationFrame(animate);
+      }
+    };
+    
+    animate();
+  }
+  
+  /**
+   * Clear all bounce indicators
+   */
+  private clearBounceIndicators(): void {
+    this.bounceIndicators.forEach(indicator => {
+      this.scene.remove(indicator);
+      indicator.geometry.dispose();
+      (indicator.material as THREE.Material).dispose();
+    });
+    
+    this.bounceIndicators = [];
+    
+    // Also clear landing indicator
+    if (this.predictedLandingIndicator) {
+      this.scene.remove(this.predictedLandingIndicator);
+      this.predictedLandingIndicator.geometry.dispose();
+      (this.predictedLandingIndicator.material as THREE.Material).dispose();
+      this.predictedLandingIndicator = null;
+    }
+  }
+  
+  /**
+   * Update the line geometry with power-based coloring (Kirby's Dream Course style)
+   */
+  private updateLine(power: number, shotType: ShotType): void {
+    if (this.points.length < 2) return;
+    
+    // Update geometry
+    const geometry = new THREE.BufferGeometry().setFromPoints(this.points);
+    this.line.geometry.dispose();
+    this.line.geometry = geometry;
+    
+    // Get the line material
+    const material = this.line.material as THREE.LineBasicMaterial;
+    
+    // Change color based on power and shot type (like in Kirby's Dream Course)
+    if (shotType === ShotType.GROUNDER) {
+      if (power < 33) {
+        material.color.set(0x00ff00); // Green for low power
+      } else if (power < 66) {
+        material.color.set(0xffff00); // Yellow for medium power
+      } else {
+        material.color.set(0xff0000); // Red for high power
+      }
+    } else { // FLY shot
+      if (power < 33) {
+        material.color.set(0x00ffff); // Cyan for low power
+      } else if (power < 66) {
+        material.color.set(0xff00ff); // Magenta for medium power
+      } else {
+        material.color.set(0xff8000); // Orange for high power
+      }
+    }
+    
+    // Super shot indicator (100% power)
+    if (power >= 99) {
+      // Make line thicker and more vibrant for super shots
+      material.linewidth = 5; // Note: linewidth > 1 may not work on all devices
+      material.opacity = 1.0;
+    } else {
+      material.linewidth = 3;
+      material.opacity = 0.8;
+    }
+  }
+  
+  /**
+   * Hide the trajectory line
+   */
+  public hideTrajectory(): void {
+    this.line.visible = false;
+    this.clearBounceIndicators();
+  }
+  
+  /**
+   * Clean up resources
+   */
+  public dispose(): void {
+    this.line.geometry.dispose();
+    (this.line.material as THREE.Material).dispose();
+    this.scene.remove(this.line);
+    this.clearBounceIndicators();
+  }
+}
