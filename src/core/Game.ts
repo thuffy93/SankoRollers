@@ -3,10 +3,11 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { AssetManager } from './AssetManager';
 import { PhysicsWorld } from '../physics/PhysicsWorld';
 import { SceneRenderer } from '../rendering/SceneRenderer';
-import { CameraController } from '../rendering/CameraController';
+import { CameraController, CameraMode } from '../rendering/CameraController';
 import { BallEntity } from '../entities/BallEntity';
 import { TerrainEntity } from '../entities/TerrainEntity';
-import { ShotController } from '../gameplay/ShotController';
+import { ShotController } from '../gameplay/shot/ShotController';
+import { ShotType, SpinType } from '../gameplay/shot/ShotTypes';
 import { GameStateManager, GameState } from '../utils/GameStateManager';
 import { InputManager } from '../utils/InputManager';
 import { EventSystem, GameEvents } from '../utils/EventSystem';
@@ -30,6 +31,9 @@ export class Game {
   private shotController: ShotController;
   private ball: BallEntity;
   private terrain: TerrainEntity;
+  private lastFrameTime: number = 0;
+  private isInitialized: boolean = false;
+  private boundHandlers: { ballBounce: (collisionData: any) => void; ballStopped: () => void } | null = null;
 
   /**
    * Private constructor (using singleton pattern)
@@ -63,6 +67,8 @@ export class Game {
     
     // Global access for debugging
     (window as any).game = this;
+    
+    this.isInitialized = true;
   }
 
   /**
@@ -113,8 +119,29 @@ export class Game {
     // Initialize the input manager
     this.inputManager.initialize();
     
+    // Setup state change listener
+    this.gameStateManager.onEnterState(GameState.AIMING, this.handleEnterAimingState.bind(this));
+    this.gameStateManager.onEnterState(GameState.SHOT_PANEL, this.handleEnterShotPanelState.bind(this));
+    this.gameStateManager.onEnterState(GameState.CHARGING, this.handleEnterChargingState.bind(this));
+    this.gameStateManager.onEnterState(GameState.ROLLING, this.handleEnterRollingState.bind(this));
+    this.gameStateManager.onEnterState(GameState.BOOST_READY, this.handleEnterBoostReadyState.bind(this));
+    this.gameStateManager.onEnterState(GameState.IDLE, this.handleEnterIdleState.bind(this));
+    
+    // Create bound event handlers to avoid creating new functions on each bind
+    const boundBallBounceHandler = this.handleBallBounce.bind(this);
+    const boundBallStoppedHandler = this.handleBallStopped.bind(this);
+
+    // Listen for ball bounce events from physics
+    this.eventSystem.on(GameEvents.BALL_BOUNCE, boundBallBounceHandler);
+
     // Listen for ball stopped event from physics
-    this.eventSystem.on(GameEvents.BALL_STOPPED, this.handleBallStopped.bind(this));
+    this.eventSystem.on(GameEvents.BALL_STOPPED, boundBallStoppedHandler);
+
+    // Store the bound handlers for cleanup
+    this.boundHandlers = {
+      ballBounce: boundBallBounceHandler,
+      ballStopped: boundBallStoppedHandler
+    };
     
     // Set initial game state
     this.gameStateManager.setState(GameState.IDLE);
@@ -148,14 +175,99 @@ export class Game {
   }
 
   /**
-   * Handle ball stopped event
+   * Handle entering idle state
+   */
+  private handleEnterIdleState(): void {
+    // The ball has stopped or the shot was canceled
+    // In a full game, this is where we would check for hole completion, etc.
+  }
+  
+  /**
+   * Handle entering aiming state (Phase 1)
+   */
+  private handleEnterAimingState(): void {
+    // Ensure camera is in aim mode
+    this.cameraController.setMode(CameraMode.ORBIT);
+  }
+  
+  /**
+   * Handle entering shot panel state (Phase 2)
+   */
+  private handleEnterShotPanelState(): void {
+    // Keep camera in aim mode during guide selection
+    this.cameraController.setMode(CameraMode.ORBIT);
+  }
+  
+  /**
+   * Handle entering charging state (Phase 3)
+   */
+  private handleEnterChargingState(): void {
+    // Keep camera in aim mode during power selection
+    this.cameraController.setMode(CameraMode.ORBIT);
+  }
+  
+  /**
+   * Handle entering rolling state (Phase 4a)
+   */
+  private handleEnterRollingState(): void {
+    // Switch camera to follow mode
+    this.cameraController.setMode(CameraMode.FOLLOW);
+    
+    // Set ball to moving using the proper method
+    this.ball.setMoving(true);
+  }
+  
+  /**
+   * Handle entering boost ready state (Phase 4b)
+   */
+  private handleEnterBoostReadyState(): void {
+    // Ball has hit a surface and can be boosted
+    
+    // In a full implementation, you might want to:
+    // - Slow down time slightly
+    // - Add visual effects to the ball
+    // - Show boost prompt UI
+    
+    console.log('Boost opportunity available!');
+  }
+  
+  /**
+   * Handle ball bounce events from physics
+   * This is crucial for the boost mechanic in Phase 4
+   */
+  private handleBallBounce(collisionData: any): void {
+    // Only check for boost in ROLLING state
+    if (!this.gameStateManager.isState(GameState.ROLLING)) return;
+    
+    // Get velocity to check if the ball has enough speed for a boost
+    const velocity = this.ball.getVelocity();
+    const speed = velocity.length();
+    
+    // Only allow boost at meaningful speeds (avoid small bumps)
+    if (speed > 2.0) {
+      // Trigger boost opportunity
+      this.gameStateManager.setState(GameState.BOOST_READY);
+      
+      // Emit event with collision data for ShotController
+      this.eventSystem.emit(GameEvents.BALL_BOUNCE, collisionData);
+    }
+  }
+  
+  /**
+   * Handle ball stopped events from physics
    */
   private handleBallStopped(): void {
-    // If in ROLLING state, return to IDLE
-    if (this.gameStateManager.isState(GameState.ROLLING)) {
+    // Transition to IDLE state if we're currently in ROLLING or BOOST_READY
+    if (this.gameStateManager.isState(GameState.ROLLING) || 
+        this.gameStateManager.isState(GameState.BOOST_READY)) {
+      
+      // Reset the ball's moving flag using the proper method
+      this.ball.setMoving(false);
+      
+      // Transition to idle state
       this.gameStateManager.setState(GameState.IDLE);
       
-      console.log('Ball stopped, returning to IDLE state');
+      console.log('Ball stopped rolling');
     }
   }
 
@@ -166,7 +278,7 @@ export class Game {
     if (!this.isRunning) {
       this.isRunning = true;
       this.lastTime = performance.now();
-      requestAnimationFrame(this.gameLoop.bind(this));
+      requestAnimationFrame(this.update.bind(this));
       console.log('Game loop started');
     }
   }
@@ -180,67 +292,131 @@ export class Game {
   }
 
   /**
-   * Main game loop
+   * Main update method called each frame
    */
-  private gameLoop(currentTime: number): void {
-    if (!this.isRunning) return;
+  private update(timestamp: number): void {
+    if (!this.isInitialized) return;
     
-    // Calculate delta time in seconds
-    const deltaTime = (currentTime - this.lastTime) / 1000;
-    this.lastTime = currentTime;
+    // Calculate delta time
+    const deltaTime = (timestamp - this.lastFrameTime) / 1000;
+    this.lastFrameTime = timestamp;
     
-    // Update input manager
+    // Update input manager for continuous key handling
     this.inputManager.update();
     
-    // Update physics world
-    this.physicsWorld.update(deltaTime);
+    // Update physics
+    if (this.physicsWorld) {
+      this.physicsWorld.update(deltaTime);
+    }
     
-    // Update entities
-    this.ball.update();
-    this.terrain.update();
+    // Update shot controller
+    if (this.shotController) {
+      this.shotController.update(deltaTime);
+    }
     
-    // Update camera controller
-    this.cameraController.update();
-    
-    // Update shot controller with delta time
-    this.shotController.update(deltaTime);
-    
-    // Check if ball has stopped (if in ROLLING state)
-    if (this.gameStateManager.isState(GameState.ROLLING)) {
-      const velocity = this.ball.getVelocity();
-      const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+    // Update ball position to match physics
+    if (this.ball) {
+      this.ball.update();
       
-      // If ball is very slow, emit ball stopped event
-      if (speed < 0.5) {
-        this.eventSystem.emit(GameEvents.BALL_STOPPED);
+      // Check for out of bounds
+      this.checkBallOutOfBounds();
+      
+      // Check if ball has stopped (if in ROLLING state)
+      if (this.gameStateManager.isState(GameState.ROLLING)) {
+        const velocity = this.ball.getVelocity();
+        const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+        
+        // If ball is very slow, consider it stopped
+        if (speed < 0.5) {
+          // Mark ball as not moving
+          this.ball.setMoving(false);
+          
+          // Transition to IDLE state directly without emitting an event
+          // This avoids the recursive loop that was happening before
+          this.gameStateManager.setState(GameState.IDLE);
+        }
       }
     }
     
-    // Render scene
-    this.renderer.render(this.scene, this.camera);
+    // Update camera to follow ball
+    if (this.cameraController) {
+      this.cameraController.update();
+    }
     
-    // Continue game loop
-    requestAnimationFrame(this.gameLoop.bind(this));
+    // Render scene
+    if (this.renderer) {
+      this.renderer.render(this.scene, this.camera);
+    }
+    
+    // Handle state-specific updates
+    this.handleStateSpecificUpdates(deltaTime);
+    
+    // Request next frame
+    if (this.isRunning) {
+      requestAnimationFrame(this.update.bind(this));
+    }
   }
 
   /**
-   * Fire a shot with the specified power
-   * 
-   * Note: This method is mainly for backward compatibility with the UI button
+   * Check if ball is out of bounds and reset if necessary
    */
-  public fireShot(power: number): void {
-    if (!this.shotController) {
-      console.error("Shot controller not initialized");
-      return;
+  private checkBallOutOfBounds(): void {
+    if (!this.ball) return;
+
+    const position = this.ball.getPosition();
+    const bounds = 50; // Arena bounds
+    
+    if (
+      position.x < -bounds || 
+      position.x > bounds || 
+      position.z < -bounds || 
+      position.z > bounds ||
+      position.y < -10 // Fell through the floor
+    ) {
+      console.log('Ball out of bounds, resetting position');
+      
+      // Reset ball position to center
+      this.ball.setPosition(new THREE.Vector3(0, 1, 0));
+      
+      // Set game state to idle
+      this.gameStateManager.setState(GameState.IDLE);
     }
+  }
+
+  /**
+   * Handle state-specific updates that need to happen each frame
+   */
+  private handleStateSpecificUpdates(deltaTime: number): void {
+    const currentState = this.gameStateManager.getState();
     
-    // Ensure power is between 0 and 1
-    const normalizedPower = Math.max(0, Math.min(1, power));
-    
-    // Use the shot controller to fire the shot
-    this.shotController.fireShot({ power: normalizedPower });
-    
-    console.log(`Shot fired with power: ${normalizedPower}`);
+    switch (currentState) {
+      case GameState.BOOST_READY:
+        // Check for boost window timeout
+        // The actual timeout is handled in ShotController
+        break;
+        
+      case GameState.ROLLING:
+        // Handle ball physics while rolling
+        // Check for bounce opportunities
+        break;
+    }
+  }
+
+  /**
+   * Fire a shot with the given parameters (for external/debug use)
+   */
+  public fireShot(power: number = 0.7): void {
+    if (this.shotController) {
+      // Set up shot parameters
+      const options = {
+        power: power,
+        shotType: ShotType.GROUNDER,
+        spinType: SpinType.NONE
+      };
+      
+      // Fire the shot
+      this.shotController.fireShot(options);
+    }
   }
 
   /**
@@ -271,7 +447,10 @@ export class Game {
     
     // Remove event listeners
     window.removeEventListener('resize', this.onWindowResize.bind(this));
-    this.eventSystem.off(GameEvents.BALL_STOPPED, this.handleBallStopped.bind(this));
+    if (this.boundHandlers) {
+      this.eventSystem.off(GameEvents.BALL_BOUNCE, this.boundHandlers.ballBounce);
+      this.eventSystem.off(GameEvents.BALL_STOPPED, this.boundHandlers.ballStopped);
+    }
     
     console.log('Game resources cleaned up');
   }

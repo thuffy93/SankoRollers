@@ -102,31 +102,63 @@ export class InputManager {
   private checkGameActions(keyCode: string, isDown: boolean): void {
     // Handle specific key presses for game actions
     switch (keyCode) {
+      // Phase 1: Direction Selection
       case 'ArrowLeft':
         if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_AIM, -1); // Left direction
+          this.eventSystem.emit(GameEvents.SHOT_AIM, -0.8); // Left direction with reduced sensitivity
         }
         break;
         
       case 'ArrowRight':
         if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_AIM, 1); // Right direction
+          this.eventSystem.emit(GameEvents.SHOT_AIM, 0.8); // Right direction with reduced sensitivity
+        }
+        break;
+      
+      // Direction confirmation to move to Phase 2
+      case 'Enter':
+      case 'KeyA': // A button on gamepad equivalent
+        if (isDown) {
+          this.eventSystem.emit(GameEvents.SHOT_DIRECTION_CONFIRM);
         }
         break;
         
+      // Phase 2: Guide Length Selection
+      case 'ArrowUp':
+      case 'ArrowDown':
+        if (isDown) {
+          this.eventSystem.emit(GameEvents.SHOT_GUIDE_TOGGLE);
+        }
+        break;
+        
+      // Guide confirmation to move to Phase 3
+      case 'KeyS': // B button on gamepad equivalent
+        if (isDown) {
+          this.eventSystem.emit(GameEvents.SHOT_GUIDE_CONFIRM);
+        }
+        break;
+      
+      // Phase 3: Power/Spin Selection (Space starts oscillation)
       case 'Space':
         if (isDown) {
-          // Start charging shot
+          // Start power oscillation
           this.eventSystem.emit(GameEvents.SHOT_POWER_CHANGE, 0);
         } else {
-          // Execute shot
+          // Lock in power and execute shot
           this.eventSystem.emit(GameEvents.SHOT_EXECUTE);
+        }
+        break;
+        
+      // Phase 4: Boost at bounce points
+      case 'KeyB': // For boost at the right moment
+        if (isDown) {
+          this.eventSystem.emit(GameEvents.SHOT_BOOST);
         }
         break;
         
       case 'Escape':
         if (isDown) {
-          // Cancel shot
+          // Cancel shot from any phase
           this.eventSystem.emit(GameEvents.SHOT_CANCEL);
         }
         break;
@@ -151,18 +183,19 @@ export class InputManager {
    * Update method called each frame to handle continuous key presses
    */
   public update(): void {
-    // Handle continuous press for arrow keys
+    // Handle continuous press for arrow keys - for more precise aiming
     if (this.isKeyDown('ArrowLeft')) {
-      this.eventSystem.emit(GameEvents.SHOT_AIM, -1);
+      this.eventSystem.emit(GameEvents.SHOT_AIM, -1.0);
     }
     
     if (this.isKeyDown('ArrowRight')) {
-      this.eventSystem.emit(GameEvents.SHOT_AIM, 1);
+      this.eventSystem.emit(GameEvents.SHOT_AIM, 1.0);
     }
     
-    // Handle continuous space bar hold to increase power
+    // Handle Space key for power changes in Phase 3
     if (this.isKeyDown('Space')) {
-      this.eventSystem.emit(GameEvents.SHOT_POWER_CHANGE, 0.05); // Increment power
+      // The ShotController now handles power oscillation internally
+      // We just need to send the initial power change event on key press
     }
   }
 

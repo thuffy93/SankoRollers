@@ -450,4 +450,153 @@ export class GameManager {
 
 // Usage
 const gameManager = GameManager.getInstance();
-``` 
+```
+
+---
+description: Hybrid ECS Architecture Implementation Guidelines
+globs: src/systems/**/*.ts, src/ecs/**/*.ts
+alwaysApply: true
+---
+
+# Hybrid ECS Architecture
+
+A hybrid Entity Component System (ECS) approach selectively implements data-oriented design for performance-critical subsystems while maintaining the existing component-based architecture for most of the codebase.
+
+- **Candidate Subsystems for ECS**
+  
+  ```typescript
+  // ✅ DO: Apply ECS selectively to high-entity-count systems
+  // Good candidates:
+  // - Particle systems
+  // - Collectibles/power-ups
+  // - Terrain chunks
+  // - Physics-intensive systems
+  
+  // ❌ DON'T: Force ECS on systems with complex state or relationships
+  // Poor candidates:
+  // - Main player controller
+  // - Camera system
+  // - UI components
+  // - Core game loop
+  ```
+
+- **Efficient Component Storage**
+  
+  ```typescript
+  // ✅ DO: Use typed arrays for homogeneous data
+  class PositionComponent {
+    private positions: Float32Array;
+    private capacity: number;
+    private count: number = 0;
+    
+    constructor(capacity: number) {
+      this.capacity = capacity;
+      this.positions = new Float32Array(capacity * 3);
+    }
+    
+    add(entity: number, x: number, y: number, z: number): number {
+      const index = this.count++;
+      const offset = index * 3;
+      
+      this.positions[offset] = x;
+      this.positions[offset + 1] = y;
+      this.positions[offset + 2] = z;
+      
+      return index;
+    }
+  }
+  
+  // ❌ DON'T: Use objects for performance-critical data
+  class PoorPositionComponent {
+    private positions: {x: number, y: number, z: number}[] = [];
+    
+    add(entity: number, x: number, y: number, z: number): number {
+      return this.positions.push({x, y, z}) - 1;
+    }
+  }
+  ```
+
+- **System Integration with Existing Architecture**
+  
+  ```typescript
+  // ✅ DO: Create facade classes for clean integration
+  class ParticleSystemFacade {
+    private ecs: MiniECS;
+    
+    constructor(scene: THREE.Scene) {
+      this.ecs = new MiniECS();
+      // Setup...
+    }
+    
+    // External API matching component pattern
+    createExplosion(position: THREE.Vector3, size: number): void {
+      // Internally uses ECS
+      for (let i = 0; i < 50; i++) {
+        const entity = this.ecs.createEntity();
+        // Add components...
+      }
+    }
+    
+    update(deltaTime: number): void {
+      this.ecs.update(deltaTime);
+    }
+    
+    dispose(): void {
+      // Cleanup...
+    }
+  }
+  
+  // ❌ DON'T: Expose ECS implementation details to other systems
+  // Don't require external systems to understand entity IDs or components
+  ```
+
+- **Memory Management**
+  
+  ```typescript
+  // ✅ DO: Implement object pooling for frequently used objects
+  class Vector3Pool {
+    private pool: THREE.Vector3[] = [];
+    
+    get(): THREE.Vector3 {
+      return this.pool.pop() || new THREE.Vector3();
+    }
+    
+    release(vector: THREE.Vector3): void {
+      vector.set(0, 0, 0);
+      this.pool.push(vector);
+    }
+  }
+  
+  // ✅ DO: Pre-allocate capacity for expected entity counts
+  const MAX_PARTICLES = 10000;
+  const particleSystem = new ParticleSystem(MAX_PARTICLES);
+  ```
+
+- **Testing and Profiling**
+  
+  ```typescript
+  // ✅ DO: Benchmark ECS implementation against traditional approach
+  const ENTITY_COUNT = 10000;
+  
+  // Traditional benchmark
+  console.time('traditional');
+  for (let i = 0; i < ENTITY_COUNT; i++) {
+    traditionalSystem.createEntity();
+  }
+  for (let i = 0; i < 100; i++) {
+    traditionalSystem.update(0.016);
+  }
+  console.timeEnd('traditional');
+  
+  // ECS benchmark
+  console.time('ecs');
+  for (let i = 0; i < ENTITY_COUNT; i++) {
+    ecsSystem.createEntity();
+  }
+  for (let i = 0; i < 100; i++) {
+    ecsSystem.update(0.016);
+  }
+  console.timeEnd('ecs');
+  ```
+
+See `memory-bank/design_references/HybridECS.md` for detailed implementation guidance. 

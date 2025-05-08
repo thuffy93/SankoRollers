@@ -116,25 +116,42 @@ export class EventSystem {
   }
 }
 
-// Common event names used throughout the game
+/**
+ * Standard game events
+ */
 export const GameEvents = {
-  // Input Events
-  KEY_DOWN: 'key:down',
-  KEY_UP: 'key:up',
+  // Input events
+  SHOT_AIM: 'shot:aim',                  // Player is aiming shot direction (Phase 1)
+  SHOT_DIRECTION_CONFIRM: 'shot:dir_confirm', // Player confirms direction and moves to guide selection (Phase 1→2)
+  SHOT_GUIDE_TOGGLE: 'shot:guide_toggle', // Player toggles between short and long guide (Phase 2)
+  SHOT_GUIDE_CONFIRM: 'shot:guide_confirm', // Player confirms guide selection and moves to power/spin (Phase 2→3)
+  SHOT_POWER_CHANGE: 'shot:power',       // Player is changing shot power (Phase 3)
+  SHOT_SPIN_CHANGE: 'shot:spin',         // Player is changing shot spin (Phase 3)
+  SHOT_TYPE_TOGGLE: 'shot:type_toggle',  // Player toggles between grounder and fly shot (Phase 1-3)
+  SHOT_EXECUTE: 'shot:execute',          // Player executes the shot (Phase 3→4)
+  SHOT_CANCEL: 'shot:cancel',            // Player cancels the shot (Any Phase→IDLE)
+  SHOT_BOOST: 'shot:boost',              // Player activates boost at bounce point (Phase 4)
+  SHOT_PARAMS_CHANGED: 'shot:params_changed', // Shot parameters have been updated
   
-  // Shot Events
-  SHOT_AIM: 'shot:aim',
-  SHOT_POWER_CHANGE: 'shot:power',
-  SHOT_EXECUTE: 'shot:execute',
-  SHOT_CANCEL: 'shot:cancel',
+  // Game state events
+  BALL_MOVING: 'ball:moving',            // Ball is moving
+  BALL_STOPPED: 'ball:stopped',          // Ball has stopped moving
+  BALL_BOUNCE: 'ball:bounce',            // Ball has bounced (potential boost opportunity)
+  HOLE_COMPLETE: 'hole:complete',        // Player completed the current hole
+  GAME_STARTED: 'game:started',          // Game has started
+  GAME_PAUSED: 'game:paused',            // Game has been paused
+  GAME_RESUMED: 'game:resumed',          // Game has been resumed
+  GAME_OVER: 'game:over',                // Game is over
   
-  // Game State Events
-  STATE_CHANGE: 'state:change',
+  // UI events
+  UI_UPDATE: 'ui:update',                // UI needs to be updated
+  SCORE_CHANGED: 'score:changed',        // Score has changed
+  SUPER_SHOT_READY: 'super_shot:ready',  // Power meter in super shot range (95-100%)
   
-  // Ball Events
-  BALL_MOVING: 'ball:moving',
-  BALL_STOPPED: 'ball:stopped',
+  // Keyboard events
+  KEY_DOWN: 'key:down',                  // Key pressed
+  KEY_UP: 'key:up',                      // Key released
   
-  // UI Events
-  UI_POWER_CHANGE: 'ui:power',
+  // State events
+  STATE_CHANGE: 'state:change',          // Game state changed
 }; 
