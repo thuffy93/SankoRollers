@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/golf-ball.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sanko Rollers Golf</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        font-family: Arial, sans-serif;
+      }
+      
+      #gameCanvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+      
+      #ui-overlay {
+        position: absolute;
+        bottom: 20px;
+        right: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      
+      #power-meter {
+        width: 200px;
+        height: 30px;
+        background-color: #333;
+        border-radius: 15px;
+        overflow: hidden;
+      }
+      
+      #power-bar {
+        width: 0%;
+        height: 100%;
+        background-color: #00aa00;
+        transition: width 0.05s linear;
+      }
+      
+      .ui-button {
+        padding: 10px 20px;
+        background-color: #ff3333;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 10px;
+        font-weight: bold;
+      }
+      
+      .ui-button:hover {
+        background-color: #ff6666;
+      }
+      
+      .ui-button:active {
+        background-color: #cc0000;
+      }
+      
+      .control-info {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        font-size: 14px;
+        max-width: 300px;
+      }
+      
+      .control-info h3 {
+        margin-top: 0;
+        margin-bottom: 10px;
+        color: #ffcc00;
+      }
+      
+      .key {
+        display: inline-block;
+        background-color: #444;
+        border: 1px solid #666;
+        border-radius: 4px;
+        padding: 2px 8px;
+        margin: 0 2px;
+        font-family: monospace;
+        box-shadow: 0 2px 0 #222;
+      }
+      
+      .game-state {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="gameCanvas"></canvas>
+    
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+      <div id="power-meter">
+        <div id="power-bar"></div>
+      </div>
+      <button id="shoot-button" class="ui-button">SHOOT!</button>
+    </div>
+    
+    <!-- Controls Info -->
+    <div class="control-info">
+      <h3>Keyboard Controls</h3>
+      <p><span class="key">←</span> <span class="key">→</span> Aim left/right</p>
+      <p><span class="key">Space</span> Hold to charge power, release to shoot</p>
+      <p><span class="key">Esc</span> Cancel shot</p>
+      
+      <h3>Shot Sequence</h3>
+      <p>1. Use arrow keys to aim</p>
+      <p>2. Hold Space to charge power</p>
+      <p>3. Release Space to shoot</p>
+      <p>4. Wait for ball to stop</p>
+    </div>
+    
+    <!-- Game State Display -->
+    <div class="game-state" id="game-state-display">
+      State: <span id="current-state">IDLE</span>
+    </div>
+    
+    <script type="module" src="/src/main.tsx"></script>
+    <script>
+      // Wait for game to load
+      window.addEventListener('load', () => {
+        // Get the shoot button
+        const shootButton = document.getElementById('shoot-button');
+        const gameStateSpan = document.getElementById('current-state');
+        
+        // Add click event to shoot button
+        shootButton.addEventListener('click', () => {
+          // Call game's fireShot method if it exists
+          if (window.game && typeof window.game.fireShot === 'function') {
+            window.game.fireShot(0.8); // 80% power shot
+          } else {
+            console.error('Game not initialized or fireShot method not available');
+          }
+        });
+        
+        // Update game state display when it changes
+        if (window.addEventListener) {
+          window.addEventListener('stateChange', (event) => {
+            if (gameStateSpan && event.detail && event.detail.state) {
+              gameStateSpan.textContent = event.detail.state;
+            }
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

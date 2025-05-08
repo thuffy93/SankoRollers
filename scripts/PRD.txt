@@ -1,220 +1,621 @@
-# Overview
-Cosmic Rollers is a physics-based golf game inspired by Kirby's Dream Course, built for modern web browsers. Players control a ball character navigating through colorful isometric courses, aiming to hit targets and reach a goal hole in as few shots as possible. The game combines precise physics mechanics with accessible controls, creating an experience that's easy to learn but challenging to master.
 
-# Core Features
+# Enhanced Project Requirements Document: Cosmic Rollers
 
-## Physics-Based Ball Movement (MVP)
-- **What**: Realistic ball physics including rolling, bouncing, and momentum
-- **Why**: The core gameplay depends on accurate, predictable physics
-- **How**: Implement using Rapier3D-compat for cross-browser compatibility, with configurable parameters for mass, friction, and restitution
+## Game Overview
+Cosmic Rollers is a physics-based golf game deeply inspired by Kirby's Dream Course, providing an engaging 3D isometric experience where players control a ball, navigating through procedurally generated courses to hit targets and reach goals in as few shots as possible.
 
-## Shot Control System (MVP)
-- **What**: Three-phase input system (angle, power, spin) for controlling shots
-- **Why**: Provides intuitive but deep control mechanics that reward skill
-- **How**: Visual indicators for angle selection, power meter timing, and optional spin controls
+## Core Design Principles
+- **Fidelity to Original Mechanics**: Accurately recreate the physics feel of Kirby's Dream Course
+- **Modular Architecture**: Implement clean separation between game systems
+- **Progressive Enhancement**: Build core systems first, then layer complexity
+- **Procedural Generation**: Use noise-based algorithms for course variety
+- **Performance First**: Maintain 60fps on mid-tier devices
 
-## Isometric Camera (MVP)
-- **What**: Fixed-angle camera view with smooth tracking of the player ball
-- **Why**: Provides clear view of the course while maintaining the retro aesthetic
-- **How**: Three.js camera positioned at a 45-degree angle, with interpolated following
+## Game Structure
 
-## Simple Course Creation (MVP)
-- **What**: A system for building basic courses with terrain, walls, and targets
-- **Why**: Essential for gameplay testing and establishing the foundation for future procedural generation
-- **How**: Manually designed initial courses using Three.js primitives and Rapier colliders
+### System Architecture
+```
+Game
+├── Core
+│   ├── GameManager: Central controller for game state and systems
+│   ├── AssetManager: Handles resource loading and caching
+│   ├── InputManager: Processes and normalizes player input
+│   └── SceneManager: Controls level loading and transitions
+├── Physics
+│   ├── PhysicsWorld: Encapsulates Rapier world and parameters
+│   ├── CollisionManager: Handles collision callbacks and events
+│   └── PhysicsDebugger: Visual debugging for physics bodies
+├── Rendering
+│   ├── SceneRenderer: Main Three.js scene handling
+│   ├── CameraController: Manages isometric camera behavior
+│   ├── EffectsManager: Particle systems and visual feedback
+│   └── UIRenderer: Handles in-game interface elements
+├── Gameplay
+│   ├── ShotController: Implements shot mechanics and power system
+│   ├── CourseManager: Loads/generates and tracks course state
+│   ├── EntityManager: Tracks all game objects and their states
+│   └── ScoreManager: Tracks player progress and statistics
+└── Procedural
+    ├── NoiseGenerator: Perlin/Simplex noise generation
+    ├── TerrainGenerator: Creates course terrain from noise maps
+    ├── ObstacleGenerator: Places obstacles based on terrain
+    └── CourseValidator: Ensures generated courses are playable
+```
 
-## Target Hit System (MVP)
-- **What**: Enemies/targets that transform when hit by the player ball
-- **Why**: Creates the core gameplay loop of hitting all targets before reaching the goal
-- **How**: Collision detection between ball and target objects, with visual feedback
+### Entity Hierarchy
+```
+Entity (Base class with position, rotation, update method)
+├── Ball: Player-controlled ball with physics properties
+├── Terrain: Course surfaces with collision
+│   ├── FlatTerrain: Basic flat surfaces
+│   ├── SlopedTerrain: Inclined surfaces affecting ball physics
+│   └── HazardTerrain: Special areas like water or sand
+├── Target: Enemies/objects that react to ball collision
+│   ├── BasicTarget: Simple target that disappears on hit
+│   ├── MovingTarget: Target that follows a predetermined path
+│   └── BossTarget: Special target requiring multiple hits
+├── Obstacle: Objects affecting ball movement
+│   ├── Wall: Blocks ball movement
+│   ├── Bumper: Bounces the ball with increased restitution
+│   └── Booster: Provides additional momentum in a direction
+└── Goal: Final target that completes the level
+```
 
-## Basic UI Elements (MVP)
-- **What**: Power meter, angle indicator, stroke counter, and minimal menus
-- **Why**: Provides essential feedback and game state information
-- **How**: Combination of HTML/CSS for menus and Three.js for in-game indicators
+## Detailed Feature Specifications
 
-# User Experience
+### 1. Physics-Based Ball Movement
 
-## User Personas
-- **Casual Gamers**: Looking for quick, fun sessions with minimal commitment
-- **Nostalgic Players**: Fans of the original Kirby's Dream Course seeking a modern version
-- **Skill-Based Gamers**: Players who enjoy mastering precise controls and optimizing play
+#### Core Physics Properties
+- **Ball Properties**:
+  - Mass: 1.0 (adjustable per testing)
+  - Radius: 0.2 units
+  - Restitution: 0.7 for realistic bounces
+  - Friction: 0.2 for smooth rolling
+  - Linear Damping: 0.5 to gradually slow down
+  - Angular Damping: 0.2 for realistic rotation
+  - CCD Enabled: true for fast-moving collisions
 
-## Key User Flows
-1. **First-Time Experience**:
-   - Short tutorial explaining controls and objectives
-   - Simple starter course with clear path and minimal hazards
-   - Immediate visual feedback on successful actions
+- **Implementation with Rapier**:
+```typescript
+class Ball {
+  constructor(world: RAPIER.World, scene: THREE.Scene, position: THREE.Vector3) {
+    // Rigid body with ball collider
+    this.rigidBody = world.createRigidBody(
+      RAPIER.RigidBodyDesc.dynamic()
+        .setTranslation(position.x, position.y, position.z)
+        .setLinearDamping(0.5)
+        .setAngularDamping(0.2)
+        .setCcdEnabled(true)
+    );
+    
+    // Create ball collider with appropriate physics properties
+    this.collider = world.createCollider(
+      RAPIER.ColliderDesc.ball(0.2)
+        .setRestitution(0.7)
+        .setFriction(0.2),
+      this.rigidBody
+    );
+    
+    // Create visual representation
+    this.mesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.2, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xff69b4 })
+    );
+    scene.add(this.mesh);
+  }
+  
+  update() {
+    // Sync mesh with physics position and rotation
+    const position = this.rigidBody.translation();
+    this.mesh.position.set(position.x, position.y, position.z);
+    
+    const rotation = this.rigidBody.rotation();
+    this.mesh.quaternion.set(rotation.x, rotation.y, rotation.z, rotation.w);
+    
+    // Update helper properties
+    const velocity = this.rigidBody.linvel();
+    this.isMoving = velocity.length() > 0.05;
+  }
+}
+```
 
-2. **Core Gameplay Loop**:
-   - Survey course and plan shot
-   - Adjust angle and power
-   - Execute shot and watch results
-   - Continue until all targets are hit and goal is reached
-   - View score and proceed to next course
+### 2. Shot Control System
 
-3. **Course Progression**:
-   - Complete courses to unlock new, more challenging ones
-   - Gradual introduction of new obstacles and mechanics
+#### Two-Phase Input System
+Based directly on Kirby's Dream Course mechanics:
 
-## UI/UX Considerations
-- Clean, minimalist HUD that doesn't obscure gameplay
-- Consistent visual language for interactive elements
-- Immediate feedback for all player actions
-- Follows Emotional Design principles (visceral appeal, behavioral usability, reflective satisfaction)
+- **Aiming Phase**:
+  - Direction indicator showing intended path (THREE.ArrowHelper)
+  - Left/right controls to adjust aim angle
+  - Hold modifier button to apply spin (left/right bend)
+  - Up/down to switch between ground (rolling) and fly (bouncing) shots
 
-# Technical Architecture
+- **Power Phase**:
+  - Visual meter filling from 0-100%
+  - Precise timing for "Super Shot" at exactly 100% power
+  - Power directly correlates to impulse magnitude
+  - Visual feedback showing projected path based on power/angle
 
-## System Components
-- **Rendering Engine**: Three.js for 3D graphics and scene management
-- **Physics Engine**: Rapier3D-compat for deterministic physics with browser compatibility
-- **Input Manager**: Custom module for handling keyboard/mouse/touch inputs
-- **Game State Manager**: Tracks course progress, score, and unlocks
-- **Asset Manager**: Handles loading and caching of 3D models, textures, and audio
-- **UI System**: Combination of HTML/CSS and Three.js for menus and in-game indicators
+- **Shot Types**:
+  - **Grounder**: Ball rolls along surface, follows terrain
+  - **Fly Shot**: Ball bounces along path, affected by gravity
+    - Natural Shot: Standard bounce path
+    - Top Spin: Increased distance, forward momentum
+    - Back Spin: Decreased distance, can reverse direction
 
-## Data Models
-- **Course**: Terrain geometry, obstacle placement, target positions, starting point, goal position
-- **Player**: Position, velocity, power, angle, equipped abilities
-- **Targets**: Position, type, collision properties
-- **Game Session**: Current course, stroke count, targets hit, session time
+- **Implementation**:
+```typescript
+class ShotController {
+  constructor(ball: Ball, camera: THREE.Camera, scene: THREE.Scene) {
+    this.ball = ball;
+    this.camera = camera;
+    this.scene = scene;
+    
+    // Create aiming arrow
+    this.aimArrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 0, 0),
+      3,
+      0xff0000
+    );
+    scene.add(this.aimArrow);
+    
+    // Create power meter UI
+    this.powerMeter = new PowerMeter();
+    
+    this.shotType = ShotType.GROUNDER;
+    this.spinType = SpinType.NONE;
+    this.angle = 0;
+    this.power = 0;
+    this.isAiming = false;
+    this.isPowerPhase = false;
+  }
+  
+  startAiming() {
+    if (this.ball.isMoving) return;
+    
+    this.isAiming = true;
+    this.updateAimingVisuals();
+  }
+  
+  updateAim(deltaAngle) {
+    if (!this.isAiming) return;
+    
+    this.angle += deltaAngle;
+    this.updateAimingVisuals();
+  }
+  
+  setSpin(spinType) {
+    this.spinType = spinType;
+    this.updateAimingVisuals();
+  }
+  
+  setShotType(shotType) {
+    this.shotType = shotType;
+    this.updateAimingVisuals();
+  }
+  
+  startPowerPhase() {
+    if (!this.isAiming) return;
+    
+    this.isAiming = false;
+    this.isPowerPhase = true;
+    this.power = 0;
+    this.powerMeter.show();
+  }
+  
+  updatePower(deltaTime) {
+    if (!this.isPowerPhase) return;
+    
+    // Increment power (0-1 range)
+    this.power = Math.min(this.power + deltaTime * this.POWER_RATE, 1.0);
+    this.powerMeter.updateValue(this.power);
+  }
+  
+  executeShot() {
+    if (!this.isPowerPhase) return;
+    
+    this.isPowerPhase = false;
+    this.powerMeter.hide();
+    
+    // Calculate shot force based on power, angle and spin
+    const isSuperShot = Math.abs(this.power - 1.0) < 0.02; // Within 2% of max
+    const force = this.calculateShotForce(isSuperShot);
+    
+    // Apply impulse to ball
+    this.ball.applyImpulse(force);
+    
+    // Apply spin if needed
+    if (this.spinType !== SpinType.NONE) {
+      const torque = this.calculateSpinTorque();
+      this.ball.applyTorque(torque);
+    }
+  }
+  
+  private updateAimingVisuals() {
+    // Update arrow direction based on angle and spin
+    const direction = new THREE.Vector3(
+      Math.cos(this.angle),
+      0,
+      Math.sin(this.angle)
+    );
+    
+    // Apply curve to direction if spin is applied
+    if (this.spinType === SpinType.LEFT) {
+      // Curve path visualization to the left
+    } else if (this.spinType === SpinType.RIGHT) {
+      // Curve path visualization to the right
+    }
+    
+    const ballPosition = this.ball.getPosition();
+    this.aimArrow.position.copy(ballPosition);
+    this.aimArrow.setDirection(direction.normalize());
+    
+    // Update arrow color based on shot type
+    const color = this.shotType === ShotType.GROUNDER ? 0x00ff00 : 0x0000ff;
+    this.aimArrow.setColor(color);
+  }
+}
+```
 
-## APIs and Integrations
-- Local storage for saving progress and settings
-- Audio API for sound effects and music
-- Optional: Analytics for gameplay metrics (phase 2)
+### 3. Procedural Course Generation
 
-## Infrastructure Requirements
-- Static web hosting (GitHub Pages or similar)
-- Browser support: Modern browsers with WebGL support
-- Responsive design for varying screen sizes
-- Target performance: 60fps on mid-tier devices
+#### Noise-Based Terrain Generation
+- **Noise Algorithm**: Multi-octave Simplex noise for natural terrain variation
+- **Heightmap Generation**:
+  - Grid-based heightmap (e.g., 32x32 resolution)
+  - Adjustable amplitude/frequency for terrain variation
+  - Edge dampening to ensure playable boundaries
+- **Terrain Types**:
+  - Flat areas for spawn points, targets and goals
+  - Rolling hills for dynamic movement
+  - Steep slopes for challenging shots
+  - Plateaus for strategic positioning
 
-# Development Roadmap
+- **Implementation**:
+```typescript
+class TerrainGenerator {
+  constructor(seed = Math.random() * 10000) {
+    this.noise = new SimplexNoise(seed);
+    this.resolution = 32; // Grid resolution
+    this.size = 20;       // World units
+  }
+  
+  generate(options = {}) {
+    const {
+      octaves = 4,
+      persistence = 0.5,
+      lacunarity = 2.0,
+      amplitude = 1.5,
+      frequency = 1.0,
+      flatAreas = []      // Areas to keep relatively flat
+    } = options;
+    
+    // Create heightmap grid
+    const heightmap = new Float32Array(this.resolution * this.resolution);
+    
+    // Generate multi-octave noise
+    for (let y = 0; y < this.resolution; y++) {
+      for (let x = 0; x < this.resolution; x++) {
+        // Convert to normalized coordinates
+        const nx = x / this.resolution - 0.5;
+        const ny = y / this.resolution - 0.5;
+        
+        // Start with zero height
+        let height = 0;
+        let freq = frequency;
+        let amp = amplitude;
+        
+        // Sum multiple octaves
+        for (let i = 0; i < octaves; i++) {
+          height += this.noise.noise2D(nx * freq, ny * freq) * amp;
+          freq *= lacunarity;
+          amp *= persistence;
+        }
+        
+        // Apply edge dampening (smooth fall-off at edges)
+        const distanceFromCenter = Math.sqrt(nx*nx + ny*ny) * 2;
+        const edgeFactor = 1 - Math.min(1, Math.max(0, distanceFromCenter - 0.6) * 2.5);
+        height *= edgeFactor;
+        
+        // Flatten designated areas
+        for (const area of flatAreas) {
+          const dx = nx - area.x;
+          const dy = ny - area.y;
+          const distSq = dx*dx + dy*dy;
+          if (distSq < area.radius * area.radius) {
+            const flattenFactor = 1 - Math.min(1, 
+              (area.radius - Math.sqrt(distSq)) / area.radius);
+            height *= flattenFactor;
+          }
+        }
+        
+        // Store in heightmap
+        heightmap[y * this.resolution + x] = height;
+      }
+    }
+    
+    return {
+      heightmap,
+      resolution: this.resolution,
+      size: this.size
+    };
+  }
+  
+  createThreeMesh(heightmapData) {
+    // Create geometry from heightmap
+    const geometry = new THREE.PlaneGeometry(
+      heightmapData.size, 
+      heightmapData.size,
+      heightmapData.resolution - 1,
+      heightmapData.resolution - 1
+    );
+    
+    // Apply heightmap to vertices
+    const vertices = geometry.attributes.position.array;
+    for (let i = 0; i < vertices.length / 3; i++) {
+      const x = Math.floor(i % heightmapData.resolution);
+      const y = Math.floor(i / heightmapData.resolution);
+      const height = heightmapData.heightmap[y * heightmapData.resolution + x];
+      vertices[i * 3 + 2] = height; // Apply to z-coordinate
+    }
+    
+    // Update normals
+    geometry.computeVertexNormals();
+    
+    // Create mesh
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x88cc88,
+      flatShading: false,
+      wireframe: false
+    });
+    
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2; // Rotate to horizontal
+    
+    return mesh;
+  }
+  
+  createRapierCollider(world, heightmapData) {
+    // Create Rapier heightfield collider
+    const heightfield = new RAPIER.Heightfield(
+      heightmapData.resolution - 1,
+      heightmapData.resolution - 1,
+      heightmapData.heightmap,
+      { x: heightmapData.size, y: 1, z: heightmapData.size }
+    );
+    
+    const colliderDesc = RAPIER.ColliderDesc
+      .heightfield(
+        heightmapData.resolution - 1,
+        heightmapData.resolution - 1,
+        new Float32Array(heightmapData.heightmap),
+        { x: heightmapData.size, y: 1, z: heightmapData.size }
+      )
+      .setFriction(0.8);
+    
+    const body = world.createRigidBody(RAPIER.RigidBodyDesc.fixed());
+    const collider = world.createCollider(colliderDesc, body);
+    
+    return { body, collider };
+  }
+}
+```
 
-## Phase 1: Core Mechanics (MVP)
-- Three.js project setup with TypeScript
-- Rapier3D-compat physics integration
-- Basic ball movement and collision
-- Simple camera implementation
-- Shot angle and power controls
-- First playable test course with flat terrain
-- Basic collision detection for targets
+#### Obstacle and Target Placement
+- **Algorithm**: Constraint-based generation using terrain analysis
+- **Placement Rules**:
+  - Targets on flat or gently sloped areas
+  - Obstacles near key paths and choke points
+  - Edge barriers to prevent falling off in certain areas
+  - Goal placed in challenging but reachable location
+  
+- **Course Validation**:
+  - Pathfinding to verify course is completable
+  - Adjust placement if validation fails
+  - Calculate difficulty rating based on terrain complexity
 
-## Phase 2: Essential Gameplay
-- Complete target hit system with visual feedback
-- Goal hole implementation and win condition
-- Score tracking and display
-- Additional test courses with varying difficulty
-- Basic UI elements (power meter, angle indicator)
-- Camera improvements and smooth following
-- Simple menu system and course selection
+### 4. Isometric Camera System
 
-## Phase 3: Polish and Expansion
-- Shot spin mechanic implementation
-- Enhanced visual effects (particle systems, lighting)
-- Sound effects and background music
-- Additional obstacle types (bumpers, sand traps, water)
-- Course progression and unlocking system
-- Performance optimization
-- Mobile input support
+- **Camera Configuration**:
+  - Fixed 45° isometric angle for classic feel
+  - Dynamic follow behavior with smoothing
+  - Height adjustment based on terrain elevation
+  - Zoom levels for different shot types
 
-## Phase 4: Advanced Features
-- Procedural course generation
-- Power-up system implementation
-- Advanced target types with unique behaviors
-- Enhanced visual styling and themes
-- User settings and accessibility options
-- Local multiplayer mode
+- **Implementation**:
+```typescript
+class IsometricCameraController {
+  constructor(camera, target) {
+    this.camera = camera;
+    this.target = target;
+    
+    // Camera properties
+    this.distance = 10;
+    this.height = 8;
+    this.angle = Math.PI / 4; // 45 degrees
+    this.damping = 0.1;
+    
+    // Current states
+    this.currentPosition = new THREE.Vector3();
+    this.targetPosition = new THREE.Vector3();
+    
+    // Initialize camera
+    this.updateCameraPosition();
+  }
+  
+  update(deltaTime) {
+    // Get target's current position
+    const targetPos = this.target.getPosition();
+    
+    // Update target position with offset
+    this.targetPosition.set(
+      targetPos.x,
+      targetPos.y + this.height,
+      targetPos.z
+    );
+    
+    // Smoothly interpolate current position
+    this.currentPosition.lerp(this.targetPosition, this.damping);
+    
+    // Calculate camera position based on isometric angle
+    const cameraOffset = new THREE.Vector3(
+      Math.sin(this.angle) * this.distance,
+      this.height,
+      Math.cos(this.angle) * this.distance
+    );
+    
+    // Position camera and look at target
+    this.camera.position.copy(this.currentPosition).add(cameraOffset);
+    this.camera.lookAt(this.currentPosition);
+  }
+  
+  setHeight(height) {
+    this.height = height;
+  }
+  
+  setDistance(distance) {
+    this.distance = distance;
+  }
+  
+  setAngle(angle) {
+    this.angle = angle;
+  }
+  
+  zoomIn() {
+    this.distance = Math.max(5, this.distance - 1);
+  }
+  
+  zoomOut() {
+    this.distance = Math.min(15, this.distance + 1);
+  }
+}
+```
 
-## Phase 5: Future Enhancements
-- Blockchain integration for NFT cosmetics
-- Online leaderboards
-- Custom course editor
-- Advanced multiplayer features
-- Cross-platform deployment
+## Development Phases
 
-# Logical Dependency Chain
+### Phase 1: Core Mechanics (Weeks 1-3)
+- **Week 1: Project Setup & Core Systems**
+  - Initialize Three.js and Rapier
+  - Set up basic scene and rendering pipeline
+  - Configure physics world and parameters
+  - Implement asset loading system
+  - Create game loop structure
 
-1. **Foundation (Build First)**
-   - Three.js environment setup with basic scene rendering
-   - Rapier3D-compat physics world implementation
-   - Ball entity with basic movement controls
-   - Simple camera implementation
+- **Week 2: Ball Physics & Movement**
+  - Implement ball rigid body with colliders
+  - Create basic terrain with colliders
+  - Develop camera follow behavior
+  - Add debug visualization for physics
 
-2. **Core Gameplay**
-   - Shot control system (angle and power)
-   - Collision detection and response
-   - Target hit mechanics
-   - Basic course structure
+- **Week 3: Basic Shot System**
+  - Create aiming mechanism with direction indicator
+  - Implement power meter and shot execution
+  - Add grounder shot type
+  - Develop simple UI for shot display
 
-3. **Game Loop**
-   - Start/end conditions
-   - Score tracking
-   - Course completion and progression
-   - Basic UI elements
+**Milestone 1 Deliverable**: Playable prototype with:
+- Ball that can be aimed and launched
+- Simple flat terrain with physics interaction
+- Following camera with isometric perspective
+- Debug visualizations for physics
 
-4. **Polish and Playability**
-   - Visual enhancements
-   - Audio implementation
-   - Input refinement
-   - Additional courses
+### Phase 2: Core Gameplay (Weeks 4-7)
+- **Week 4: Complete Shot System**
+  - Add fly shot type with bounce physics
+  - Implement spin controls (left/right)
+  - Add top/back spin for fly shots
+  - Create visual trajectory prediction
 
-5. **Advanced Features**
-   - Spin mechanics
-   - Power-ups
-   - Obstacle variations
-   - Enhanced visual effects
+- **Week 5: Target System**
+  - Implement basic target entity
+  - Create collision detection for targets
+  - Add visual feedback for target hits
+  - Develop win condition when all targets are hit
 
-# Risks and Mitigations
+- **Week 6: Course Features**
+  - Add sloped terrain with proper physics
+  - Implement bumpers with high restitution
+  - Create water/sand hazards with physics effects
+  - Add walls and boundaries
 
-## Technical Challenges
-- **Risk**: Physics synchronization across different browsers and devices
-  - **Mitigation**: Use Rapier3D-compat for consistent physics, implement extensive testing across platforms
+- **Week 7: Goal System & Game Flow**
+  - Implement goal hole with detection
+  - Add level completion logic
+  - Create simple level transition
+  - Implement score tracking
 
-- **Risk**: Performance issues with complex physics and 3D rendering
-  - **Mitigation**: Implement LOD (Level of Detail) system, use instanced meshes, optimize collision shapes
+**Milestone 2 Deliverable**: Functional game loop with:
+- Complete shot system with all shot types
+- Working targets and goal
+- Various terrain types with appropriate physics
+- Basic game flow from level to level
 
-- **Risk**: Difficulty in creating accurate and fun shot controls
-  - **Mitigation**: Iterative prototyping with frequent playtesters, adjustable difficulty parameters
+### Phase 3: Procedural Generation (Weeks 8-10)
+- **Week 8: Noise Generation System**
+  - Implement Simplex noise generator
+  - Create heightmap generation from noise
+  - Develop parameter tuning system
+  - Add terrain visualization tools
 
-## MVP Scoping
-- **Risk**: Feature creep extending development time
-  - **Mitigation**: Strict prioritization of MVP features, clear separation between phases
+- **Week 9: Terrain Generation**
+  - Create terrain mesh from heightmap
+  - Implement Rapier collider from heightmap
+  - Add terrain material system
+  - Develop terrain modification tools
 
-- **Risk**: Overambitious course design making initial development complex
-  - **Mitigation**: Start with simple, flat courses and gradually add complexity
+- **Week 10: Object Placement**
+  - Create algorithm for target placement
+  - Implement obstacle positioning system
+  - Add goal placement logic
+  - Develop course validation system
 
-- **Risk**: Balancing physics parameters for fun gameplay
-  - **Mitigation**: Create configuration system for easy tweaking of physics values
+**Milestone 3 Deliverable**: Procedural course generation with:
+- Dynamic terrain from noise parameters
+- Intelligent placement of targets and obstacles
+- Course validation ensuring playability
+- Editor tools for manual adjustments
 
-## Resource Constraints
-- **Risk**: Limited 3D art resources affecting visual appeal
-  - **Mitigation**: Use procedural generation and simple geometric shapes with effective materials
+### Phase 4: Polish & Refinement (Weeks 11-12)
+- **Week 11: Visual Enhancement**
+  - Add particle effects for hits and goals
+  - Implement material improvements
+  - Add lighting effects
+  - Create smooth animations for game objects
 
-- **Risk**: Browser compatibility issues
-  - **Mitigation**: Target modern browsers initially, use feature detection, and provide fallbacks where possible
+- **Week 12: UI & UX**
+  - Implement full game UI
+  - Add menu system
+  - Create tutorial/help system
+  - Polish camera behavior and transitions
 
-# Appendix
+**Final Deliverable**: Complete game with:
+- Polished visuals and effects
+- Intuitive UI and controls
+- Procedurally generated levels with varying difficulty
+- Smooth game flow from start to finish
 
-## Technical Specifications
-- **Rendering**: Three.js with WebGL 2.0
-- **Physics**: Rapier3D-compat (version 0.9.0 or newer)
-- **Build System**: Webpack or Vite
-- **Language**: TypeScript
-- **Asset Format**: glTF for 3D models, compressed textures for materials
-- **Minimum Requirements**: Browser with WebGL 2.0 support, 4GB RAM, dual-core CPU
+## Technical Considerations
 
-## Design References
-- Original Kirby's Dream Course (SNES, 1994)
-- Modern golf games with arcade elements
-- Isometric puzzle games with physics elements
-- Don Norman's Emotional Design principles
+### Performance Optimization
+- Use instanced rendering for repeated elements
+- Implement object pooling for particles and effects
+- Enable Rapier's sleeping bodies for inactive objects
+- Use simplified colliders for physics where possible
+- Implement LOD (Level of Detail) for complex objects
 
-## Physics Parameters (Initial Values)
-- Ball mass: 1.0
-- Ball friction: 0.2
-- Ball restitution: 0.7
-- Gravity: -9.8 y-axis
-- Linear damping: 0.1
-- Angular damping: 0.05 
+### Testing Strategy
+- **Unit Tests**: For core systems and algorithms
+- **Physics Tests**: Validate expected behavior of collisions
+- **Procedural Testing**: Automated validation of generated courses
+- **Performance Benchmarks**: Ensure 60fps on target devices
+- **Playtest Protocol**: Structured feedback collection
+
+### Code Architecture Principles
+- **Entity-Component System**: For flexible game object composition
+- **Event-Driven Communication**: To reduce tight coupling
+- **State Management**: Clear state transitions and persistence
+- **Lazy Initialization**: Load resources only when needed
+- **Defensive Programming**: Validate inputs and handle edge cases
+
+This enhanced PRD provides a comprehensive roadmap for developing Cosmic Rollers with a focus on recreating the physics and mechanics of Kirby's Dream Course while adding procedural generation capabilities. The phased approach ensures a solid foundation of core mechanics before adding complexity, with clear milestones to track progress.

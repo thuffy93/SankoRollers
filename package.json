@@ -1,44 +1,30 @@
 {
-  "name": "sankorollers",
-  "version": "1.0.0",
-  "description": "golf game",
-  "main": "index.js",
+  "name": "sanko-rollers-golf",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "webpack serve --mode development --open",
-    "build": "webpack --mode production",
-    "deploy": "gh-pages -d dist"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/thuffy93/SankoRollers.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/thuffy93/SankoRollers/issues"
-  },
-  "homepage": "https://github.com/thuffy93/SankoRollers#readme",
-  "devDependencies": {
-    "@dimforge/rapier3d-compat": "^0.11.2",
-    "@types/dat.gui": "^0.7.13",
-    "@types/node": "^22.15.3",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.2.0",
-    "@types/three": "^0.176.0",
-    "css-loader": "^7.1.2",
-    "dat.gui": "^0.7.9",
-    "style-loader": "^4.0.0",
-    "three": "^0.176.0",
-    "ts-loader": "^9.5.2",
-    "typescript": "^5.8.3",
-    "webpack": "^5.99.7",
-    "webpack-cli": "^6.0.1",
-    "webpack-dev-server": "^5.2.1"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{js,jsx}\""
   },
   "dependencies": {
+    "@dimforge/rapier3d-compat": "^0.11.2",
+    "dat.gui": "^0.7.9",
+    "ecsy": "^0.4.2",
+    "ecsy-three": "^0.1.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "three": "^0.158.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.0.3",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react": "^7.32.2",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "vite": "^4.4.5"
   }
 }

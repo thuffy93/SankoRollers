@@ -1,0 +1,37 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Circle -->
+  <circle cx="32" cy="32" r="30" fill="url(#gradient)" />
+  
+  <!-- Checkerboard Pattern -->
+  <path d="M20 12H32V24H20V12Z" fill="#FFCE54" fill-opacity="0.6" />
+  <path d="M32 24H44V36H32V24Z" fill="#FFCE54" fill-opacity="0.6" />
+  <path d="M20 36H32V48H20V36Z" fill="#FFCE54" fill-opacity="0.6" />
+  <path d="M44 12H56V24H44V12Z" fill="#FFCE54" fill-opacity="0.6" />
+  <path d="M44 36H56V48H44V36Z" fill="#FFCE54" fill-opacity="0.6" />
+  
+  <!-- Golf Ball -->
+  <circle cx="32" cy="32" r="16" fill="#F5F7FA" />
+  <circle cx="32" cy="32" r="14" fill="white" />
+  
+  <!-- Light Reflection -->
+  <circle cx="28" cy="28" r="6" fill="url(#highlight)" />
+  
+  <!-- Dimples -->
+  <circle cx="38" cy="26" r="1.5" fill="#E6E9ED" />
+  <circle cx="34" cy="22" r="1.5" fill="#E6E9ED" />
+  <circle cx="29" cy="35" r="1.5" fill="#E6E9ED" />
+  <circle cx="39" cy="34" r="1.5" fill="#E6E9ED" />
+  <circle cx="25" cy="28" r="1.5" fill="#E6E9ED" />
+  
+  <!-- Gradients -->
+  <defs>
+    <linearGradient id="gradient" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4A90E2" />
+      <stop offset="1" stop-color="#AC92EB" />
+    </linearGradient>
+    <radialGradient id="highlight" cx="28" cy="28" r="6" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="white" />
+      <stop offset="1" stop-color="white" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+</svg> 

@@ -1,0 +1,453 @@
+---
+description: Properly handle asynchronous functions that return cleanup functions
+globs: src/**/*.tsx, src/**/*.ts
+alwaysApply: true
+---
+
+# Async Function Cleanup Pattern
+
+When an async function returns a cleanup function, ensure it's properly awaited and called:
+
+```typescript
+// ✅ DO: Properly handle the Promise and store cleanup function
+useEffect(() => {
+  let cleanupFn: (() => void) | undefined;
+  
+  const setup = async () => {
+    cleanupFn = await initializeGame(container);
+  };
+  
+  setup();
+  
+  return () => {
+    if (cleanupFn) cleanupFn();
+  };
+}, []);
+
+// ❌ DON'T: Call cleanup directly from Promise
+useEffect(() => {
+  const cleanup = initializeGame(container);
+  return () => {
+    cleanup(); // Error: Type 'Promise<() => void>' has no call signatures
+  };
+}, []);
+```
+
+---
+description: Handle Promise resolution in React components safely
+globs: src/components/**/*.tsx
+alwaysApply: true
+---
+
+# Promise Resolution in React
+
+Use state to handle async operations in React:
+
+```typescript
+// ✅ DO: Track mounting state
+useEffect(() => {
+  let isMounted = true;
+  let cleanup: (() => void) | undefined;
+  
+  const initializeAsync = async () => {
+    try {
+      const cleanupFn = await initializeGame(container);
+      if (isMounted) {
+        cleanup = cleanupFn;
+      } else {
+        // Component unmounted during async operation, run cleanup immediately
+        cleanupFn();
+      }
+    } catch (error) {
+      console.error("Failed to initialize game:", error);
+    }
+  };
+  
+  initializeAsync();
+  
+  return () => {
+    isMounted = false;
+    if (cleanup) cleanup();
+  };
+}, []);
+```
+
+---
+description: React and Three.js Integration Best Practices
+globs: src/components/**/*.tsx, src/rendering/**/*.ts
+alwaysApply: true
+---
+
+# React and Three.js Integration
+
+- **Use Proper Initialization and Cleanup**
+  
+  ```typescript
+  // ✅ DO: Proper initialization and cleanup in useEffect
+  useEffect(() => {
+    // Initialize resources
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    
+    // Set up scene...
+    
+    return () => {
+      // Clean up ALL resources
+      renderer.dispose();
+      scene.traverse(object => {
+        if (object instanceof THREE.Mesh) {
+          object.geometry.dispose();
+          if (object.material.map) object.material.map.dispose();
+          object.material.dispose();
+        }
+      });
+    };
+  }, []);
+  ```
+
+- **Handle Canvas References Correctly**
+  
+  ```typescript
+  // ✅ DO: Proper ref handling with checks
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return; // Guard clause
+    
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    // Continue setup...
+    
+    return () => {
+      renderer.dispose();
+    };
+  }, []);
+  
+  return <canvas ref={canvasRef} />;
+  ```
+
+- **Manage Resize Events Properly**
+  
+  ```typescript
+  // ✅ DO: Handle resize events with proper cleanup
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    const renderer = new THREE.WebGLRenderer({ canvas });
+    const camera = new THREE.PerspectiveCamera(75, canvas.width / canvas.height, 0.1, 1000);
+    
+    const handleResize = () => {
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      
+      renderer.setSize(width, height, false);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial sizing
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      renderer.dispose();
+    };
+  }, []);
+  ```
+
+---
+description: Three.js Vector Operations Best Practices
+globs: src/**/*.ts, src/**/*.tsx
+alwaysApply: true
+---
+
+# Three.js Vector Operations
+
+- **Always Clone or Copy Vectors When Passing**
+  
+  ```typescript
+  // ✅ DO: Clone vectors when passing to prevent shared references
+  const ballPosition = this.ball.getPosition().clone();
+  const startPosition = this.ball.getPosition().clone();
+  
+  // ✅ DO: Use copy for updating vectors
+  this.aimArrow.position.copy(arrowPosition);
+  
+  // ❌ DON'T: Directly assign vectors without cloning
+  const position = this.ball.getPosition(); // Risks mutation of original
+  ```
+
+- **Vector Calculations Best Practices**
+  
+  ```typescript
+  // ✅ DO: Chain operations clearly
+  const point = startPosition.clone().add(direction.clone().multiplyScalar(t));
+  
+  // ✅ DO: Use appropriate vector construction
+  const direction = new THREE.Vector3(
+    Math.sin(angle),
+    0,
+    Math.cos(angle)
+  ).normalize();
+  ```
+
+- **Normalization After Direction Changes**
+  
+  ```typescript
+  // ✅ DO: Normalize after setting components
+  const direction = new THREE.Vector3(
+    Math.sin(angle),
+    0,
+    Math.cos(angle)
+  ).normalize();
+  ```
+
+- **Vector Memory Management**
+  
+  ```typescript
+  // ✅ DO: Create reusable vectors as class properties
+  private tempVector = new THREE.Vector3();
+  
+  // In update method:
+  this.tempVector.copy(basePosition).add(offset);
+  ```
+
+---
+description: System State Management Best Practices
+globs: src/core/**/*.ts, src/physics/**/*.ts
+alwaysApply: true
+---
+
+# System State Management
+
+- **Clear State Transition Patterns**
+  
+  ```typescript
+  // ✅ DO: Define state enum
+  export enum SystemState {
+    IDLE,
+    ACTIVE,
+    PAUSED
+  }
+  
+  // ✅ DO: Create explicit transition methods
+  private currentState: SystemState = SystemState.IDLE;
+  
+  public transitionToState(newState: SystemState): void {
+    const prevState = this.currentState;
+    this.currentState = newState;
+    
+    // Perform state-specific setup/teardown
+    this.handleStateChange(prevState, newState);
+    
+    // Log for debugging
+    console.log(`State changed from ${SystemState[prevState]} to ${SystemState[newState]}`);
+  }
+  ```
+
+- **Flag Consistency**
+  
+  ```typescript
+  // ✅ DO: Initialize flags explicitly
+  private isActive: boolean = false;
+  private isInputEnabled: boolean = false;
+  
+  // ✅ DO: Provide getters for private flags
+  public getIsActive(): boolean {
+    return this.isActive;
+  }
+  ```
+
+---
+description: Defensive Programming in TypeScript/JavaScript
+globs: src/**/*.ts, src/**/*.tsx
+alwaysApply: true
+---
+
+# Defensive Programming
+
+- **Safe Property Access**
+  
+  ```typescript
+  // ✅ DO: Check for undefined/null before accessing properties
+  if (this.scoreTermMap) {
+    const term = this.scoreTermMap[scoreKey];
+  }
+  
+  // ✅ DO: Use optional chaining
+  const term = this.scoreTermMap?.scoreKey;
+  ```
+
+- **NaN Handling**
+  
+  ```typescript
+  // ✅ DO: Check for NaN before using values
+  const relScore = this.getScoreRelativeToPar();
+  if (isNaN(relScore)) {
+    return 'default value';
+  }
+  ```
+
+- **Type Guards for Object Keys**
+  
+  ```typescript
+  // ✅ DO: Check key existence
+  if (scoreKey in this.scoreTermMap) {
+    return this.scoreTermMap[scoreKey];
+  }
+  ```
+
+- **Default Value Patterns**
+  
+  ```typescript
+  // ✅ DO: Use explicit fallbacks
+  return this.scoreTermMap[scoreKey] || 'Unknown';
+  ```
+
+---
+description: Rapier Physics Integration Patterns
+globs: src/physics/**/*.ts
+alwaysApply: true
+---
+
+# Rapier Physics Integration
+
+- **Initialization Sequence**
+  
+  ```typescript
+  // ✅ DO: Properly initialize Rapier asynchronously
+  async initializePhysics(): Promise<void> {
+    // Wait for WASM to initialize
+    await RAPIER.init();
+    
+    // Create world with gravity
+    const gravity = { x: 0.0, y: -9.81, z: 0.0 };
+    this.world = new RAPIER.World(gravity);
+    
+    // Set up physics event handling
+    this.world.setContactPairEventHandler(this.contactHandler);
+    
+    this.isInitialized = true;
+  }
+  ```
+
+- **RigidBody Creation**
+  
+  ```typescript
+  // ✅ DO: Use method chaining for cleaner descriptor setup
+  createBallRigidBody(position: THREE.Vector3): RAPIER.RigidBody {
+    const rigidBodyDesc = RAPIER.RigidBodyDesc.dynamic()
+      .setTranslation(position.x, position.y, position.z)
+      .setLinearDamping(0.5)
+      .setAngularDamping(0.2)
+      .setCcdEnabled(true); // Continuous collision detection for fast objects
+    
+    return this.world.createRigidBody(rigidBodyDesc);
+  }
+  ```
+
+- **Collider Creation**
+  
+  ```typescript
+  // ✅ DO: Set up collider properties properly
+  createBallCollider(rigidBody: RAPIER.RigidBody, radius: number): RAPIER.Collider {
+    const colliderDesc = RAPIER.ColliderDesc.ball(radius)
+      .setRestitution(0.7) // Bounciness
+      .setFriction(0.3)    // Surface friction
+      .setCollisionGroups(COLLISION_GROUPS.BALL)
+      .setSensor(false);
+      
+    return this.world.createCollider(colliderDesc, rigidBody);
+  }
+  ```
+
+- **Physics Step**
+  
+  ```typescript
+  // ✅ DO: Fixed timestep with accumulator
+  private lastTime: number = 0;
+  private accumulator: number = 0;
+  private readonly FIXED_TIMESTEP: number = 1/60;
+  
+  update(currentTime: number): void {
+    if (!this.isInitialized || !this.world) return;
+    
+    const deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1);
+    this.lastTime = currentTime;
+    
+    this.accumulator += deltaTime;
+    
+    // Perform fixed steps to ensure consistent physics
+    while (this.accumulator >= this.FIXED_TIMESTEP) {
+      this.world.step();
+      this.accumulator -= this.FIXED_TIMESTEP;
+    }
+    
+    // Update visual positions to match physics
+    this.updateEntityPositions();
+  }
+  ```
+
+- **Collision Handling**
+  
+  ```typescript
+  // ✅ DO: Create a dedicated contact handler
+  private contactHandler = {
+    onContactStart: (event: RAPIER.ContactStartEvent) => {
+      const { handle: handle1 } = event.collider1;
+      const { handle: handle2 } = event.collider2;
+      
+      // Map handles to game entities
+      const entity1 = this.colliderToEntity.get(handle1);
+      const entity2 = this.colliderToEntity.get(handle2);
+      
+      if (entity1 && entity2) {
+        // Handle collision between entities
+        this.handleEntityCollision(entity1, entity2);
+      }
+    }
+  };
+  ```
+
+---
+description: Singleton Pattern Implementation
+globs: src/core/**/*.ts
+alwaysApply: true
+---
+
+# Singleton Pattern for Managers
+
+For manager classes that should only have one instance, implement a proper singleton pattern:
+
+```typescript
+// ✅ DO: Safe singleton implementation with proper typing
+export class GameManager {
+  private static instance: GameManager | null = null;
+  
+  // Private constructor prevents direct instantiation
+  private constructor() {
+    // Initialization code
+  }
+  
+  // Static method to get the instance
+  public static getInstance(): GameManager {
+    if (!GameManager.instance) {
+      GameManager.instance = new GameManager();
+    }
+    return GameManager.instance;
+  }
+  
+  // Method to reset the singleton (useful for testing)
+  public static resetInstance(): void {
+    GameManager.instance = null;
+  }
+  
+  // Rest of the class implementation
+}
+
+// Usage
+const gameManager = GameManager.getInstance();
+``` 

@@ -1,0 +1,122 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# File Management Best Practices
+
+## JavaScript to TypeScript Transition
+
+- **Delete Original Files After Conversion**
+  
+  ```typescript
+  // ✅ DO: After converting JavaScript to TypeScript, remove the original JS file
+  // 1. Create the TypeScript version with proper types
+  // 2. Update all imports to point to the new file
+  // 3. Delete the original JavaScript file
+  // 4. Test the application to ensure it works correctly
+  
+  // ❌ DON'T: Keep both versions of the same file
+  // Having both .js and .ts files with the same base name can cause:
+  // - Confusion during development
+  // - Build issues with competing module definitions
+  // - Maintenance problems when changes are made to only one version
+  ```
+
+- **Import Path Management**
+  
+  ```typescript
+  // ✅ DO: Keep import paths consistent when converting files
+  // Original JS import:
+  import { createComponent } from './Component';
+  
+  // After converting to TS, imports should point to the same path:
+  import { createComponent } from './Component'; // TypeScript resolves .ts extension
+  
+  // ❌ DON'T: Change import paths unless necessary
+  // This can cause confusion and require more changes throughout the codebase
+  ```
+
+- **File Extension Conventions**
+  
+  ```typescript
+  // ✅ DO: Use proper file extensions for different file types
+  
+  // .ts - For TypeScript files with no JSX
+  // .tsx - For TypeScript files with JSX
+  // .js - For JavaScript files with no JSX
+  // .jsx - For JavaScript files with JSX
+  // .d.ts - For TypeScript declaration files
+  ```
+
+## Module Structure Best Practices
+
+- **Component Organization**
+  
+  ```typescript
+  // ✅ DO: Keep related functionality in the same file or directory
+  // Example of good component organization:
+  
+  // src/components/Button/
+  // ├── Button.tsx - Main component
+  // ├── Button.css - Component styles
+  // ├── Button.test.tsx - Component tests
+  // └── index.ts - Re-export entry point
+  
+  // ❌ DON'T: Scatter related files across different directories
+  ```
+
+- **Clear Import/Export Pattern**
+  
+  ```typescript
+  // ✅ DO: Use barrel exports for cleaner imports
+  // In src/components/index.ts:
+  export { Button } from './Button';
+  export { Card } from './Card';
+  
+  // Then import from the barrel:
+  import { Button, Card } from 'components';
+  
+  // ❌ DON'T: Create circular dependencies
+  // This can lead to initialization errors and "undefined" values
+  ```
+
+## Type Definition Management
+
+- **Centralized Type Definitions**
+  
+  ```typescript
+  // ✅ DO: Centralize shared types and interfaces
+  // In src/types/index.ts:
+  export interface User {
+    id: string;
+    name: string;
+    email: string;
+  }
+  
+  // Or in feature-specific type files:
+  // src/features/auth/types.ts
+  
+  // ❌ DON'T: Duplicate type definitions across multiple files
+  ```
+
+- **Declaration Files**
+  
+  ```typescript
+  // ✅ DO: Create declaration files for external libraries when needed
+  // src/types/some-untyped-library.d.ts
+  
+  declare module 'some-untyped-library' {
+    export function someFunction(): void;
+    export class SomeClass {
+      method(): number;
+    }
+  }
+  ```
+
+## Lessons From Our Experience
+
+- **Singleton Patterns**: When implementing singleton patterns in TypeScript, ensure proper static property types.
+- **Resource Management**: When working with complex resources (like THREE.js objects), create utility functions in separate files for better reusability.
+- **Type Safety**: For core architectural components, prefer TypeScript over JavaScript to benefit from compile-time type checking.
+- **File Replacement**: When replacing a file with a different version (JS to TS), always verify the original file is removed completely.
