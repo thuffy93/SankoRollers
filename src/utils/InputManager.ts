@@ -1,15 +1,16 @@
 import { EventSystem, GameEvents } from './EventSystem';
+import { GameStateManager, GameState } from './GameStateManager';
 
 /**
- * InputManager - Handles keyboard input for the game
+ * InputManager - Handles user input and maps it to game events
  * 
- * This class follows the Singleton pattern and centralizes
- * all keyboard input handling, converting raw DOM events into
- * game-specific events published through the EventSystem.
+ * This class follows the Singleton pattern and captures raw input from
+ * keyboard, mouse, and touch, then emits appropriate game events.
  */
 export class InputManager {
   private static instance: InputManager | null = null;
   private eventSystem: EventSystem;
+  private gameStateManager: GameStateManager;
   private keysDown: Set<string> = new Set();
   private isInitialized: boolean = false;
   
@@ -21,7 +22,10 @@ export class InputManager {
    */
   private constructor() {
     this.eventSystem = EventSystem.getInstance();
-    console.log('InputManager initialized');
+    this.gameStateManager = GameStateManager.getInstance();
+    
+    // Set up event listeners
+    this.setupEventListeners();
   }
 
   /**
@@ -100,68 +104,80 @@ export class InputManager {
    * Check key states and emit game-specific action events
    */
   private checkGameActions(keyCode: string, isDown: boolean): void {
-    // Handle specific key presses for game actions
-    switch (keyCode) {
-      // Phase 1: Direction Selection
-      case 'ArrowLeft':
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_AIM, -0.8); // Left direction with reduced sensitivity
-        }
-        break;
-        
-      case 'ArrowRight':
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_AIM, 0.8); // Right direction with reduced sensitivity
-        }
-        break;
+    // Get current game state for state-specific handling
+    const currentState = this.gameStateManager.getState();
+    
+    // State-specific event handling to avoid unnecessary event emissions
+    if (isDown) {
+      // Handle key down events
+      switch (currentState) {
+        case GameState.IDLE:
+          // In IDLE state, Space starts a new shot
+          if (keyCode === 'Space') {
+            // Start shot is handled directly in Game.handleIdleActions
+            // No event needed here
+          }
+          break;
+          
+        case GameState.SELECTING_TYPE:
+          // In SELECTING_TYPE state, Up/Down toggles shot type, Space confirms
+          if (keyCode === 'ArrowUp' || keyCode === 'ArrowDown') {
+            this.eventSystem.emit(GameEvents.SHOT_TYPE_TOGGLE);
+          } else if (keyCode === 'Space') {
+            this.eventSystem.emit(GameEvents.SHOT_TYPE_CONFIRM);
+          }
+          break;
+          
+        case GameState.AIMING:
+          // In AIMING state, Left/Right adjusts aim, Space confirms
+          if (keyCode === 'ArrowLeft') {
+            this.eventSystem.emit(GameEvents.SHOT_AIM, -0.8);
+          } else if (keyCode === 'ArrowRight') {
+            this.eventSystem.emit(GameEvents.SHOT_AIM, 0.8);
+          } else if (keyCode === 'Space') {
+            this.eventSystem.emit(GameEvents.SHOT_DIRECTION_CONFIRM);
+          }
+          break;
+          
+        case GameState.SHOT_PANEL:
+          // In SHOT_PANEL state, Up/Down toggles guide length, Space confirms
+          if (keyCode === 'ArrowUp' || keyCode === 'ArrowDown') {
+            this.eventSystem.emit(GameEvents.SHOT_GUIDE_TOGGLE);
+          } else if (keyCode === 'Space') {
+            this.eventSystem.emit(GameEvents.SHOT_GUIDE_CONFIRM);
+          }
+          break;
+          
+        case GameState.CHARGING:
+          // In CHARGING state, Space starts power oscillation
+          if (keyCode === 'Space') {
+            this.eventSystem.emit(GameEvents.SHOT_POWER_CHANGE, 0);
+          }
+          break;
+          
+        case GameState.BOOST_READY:
+          // In BOOST_READY state, Space activates boost
+          if (keyCode === 'Space') {
+            this.eventSystem.emit(GameEvents.SHOT_BOOST);
+          }
+          break;
+      }
       
-      // Direction confirmation to move to Phase 2
-      case 'Enter':
-      case 'KeyA': // A button on gamepad equivalent
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_DIRECTION_CONFIRM);
-        }
-        break;
-        
-      // Phase 2: Guide Length Selection
-      case 'ArrowUp':
-      case 'ArrowDown':
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_GUIDE_TOGGLE);
-        }
-        break;
-        
-      // Guide confirmation to move to Phase 3
-      case 'KeyS': // B button on gamepad equivalent
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_GUIDE_CONFIRM);
-        }
-        break;
-      
-      // Phase 3: Power/Spin Selection (Space starts oscillation)
-      case 'Space':
-        if (isDown) {
-          // Start power oscillation
-          this.eventSystem.emit(GameEvents.SHOT_POWER_CHANGE, 0);
-        } else {
-          // Lock in power and execute shot
-          this.eventSystem.emit(GameEvents.SHOT_EXECUTE);
-        }
-        break;
-        
-      // Phase 4: Boost at bounce points
-      case 'KeyB': // For boost at the right moment
-        if (isDown) {
-          this.eventSystem.emit(GameEvents.SHOT_BOOST);
-        }
-        break;
-        
-      case 'Escape':
-        if (isDown) {
-          // Cancel shot from any phase
+      // Universal event handling for all states
+      if (keyCode === 'Escape') {
+        // Cancel shot from any active shot state
+        if (currentState !== GameState.IDLE && 
+            currentState !== GameState.ROLLING && 
+            currentState !== GameState.BOOST_READY) {
           this.eventSystem.emit(GameEvents.SHOT_CANCEL);
         }
-        break;
+      }
+    } else {
+      // Handle key up events
+      if (keyCode === 'Space' && currentState === GameState.CHARGING) {
+        // In CHARGING state, releasing Space executes the shot
+        this.eventSystem.emit(GameEvents.SHOT_EXECUTE);
+      }
     }
   }
 
@@ -183,17 +199,23 @@ export class InputManager {
    * Update method called each frame to handle continuous key presses
    */
   public update(): void {
-    // Handle continuous press for arrow keys - for more precise aiming
-    if (this.isKeyDown('ArrowLeft')) {
-      this.eventSystem.emit(GameEvents.SHOT_AIM, -1.0);
-    }
+    // Get current state to only emit events in appropriate states
+    const currentState = this.gameStateManager.getState();
     
-    if (this.isKeyDown('ArrowRight')) {
-      this.eventSystem.emit(GameEvents.SHOT_AIM, 1.0);
+    // Only handle continuous aim inputs in appropriate states
+    if (currentState === GameState.AIMING || currentState === GameState.CHARGING) {
+      // Handle continuous press for arrow keys - for more precise aiming
+      if (this.isKeyDown('ArrowLeft')) {
+        this.eventSystem.emit(GameEvents.SHOT_AIM, -1.0);
+      }
+      
+      if (this.isKeyDown('ArrowRight')) {
+        this.eventSystem.emit(GameEvents.SHOT_AIM, 1.0);
+      }
     }
     
     // Handle Space key for power changes in Phase 3
-    if (this.isKeyDown('Space')) {
+    if (this.isKeyDown('Space') && currentState === GameState.CHARGING) {
       // The ShotController now handles power oscillation internally
       // We just need to send the initial power change event on key press
     }
@@ -230,5 +252,13 @@ export class InputManager {
       InputManager.instance.dispose();
     }
     InputManager.instance = null;
+  }
+
+  /**
+   * Set up event listeners
+   */
+  private setupEventListeners(): void {
+    // Nothing to set up initially - actual event listeners are registered in initialize()
+    console.log('InputManager ready for initialization');
   }
 }

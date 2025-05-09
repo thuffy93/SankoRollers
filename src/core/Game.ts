@@ -11,6 +11,7 @@ import { ShotType, SpinType } from '../gameplay/shot/ShotTypes';
 import { GameStateManager, GameState } from '../utils/GameStateManager';
 import { InputManager } from '../utils/InputManager';
 import { EventSystem, GameEvents } from '../utils/EventSystem';
+import { CollisionHandler } from '../physics/CollisionHandler';
 
 /**
  * Main Game class that handles initialization and game loop
@@ -34,6 +35,9 @@ export class Game {
   private lastFrameTime: number = 0;
   private isInitialized: boolean = false;
   private boundHandlers: { ballBounce: (collisionData: any) => void; ballStopped: () => void } | null = null;
+  private collisionHandler: CollisionHandler;
+  private idleDebounceActive: boolean = false;
+  private isResettingBall: boolean = false;
 
   /**
    * Private constructor (using singleton pattern)
@@ -108,6 +112,17 @@ export class Game {
     
     // Create game entities
     this.createEntities();
+    
+    // Initialize the collision handler
+    this.collisionHandler = new CollisionHandler(
+      this.physicsWorld.getWorld(),
+      this.ball,
+      {
+        boostSpeedThreshold: 2.0,
+        ballStopThreshold: 0.15,
+        minBounceVelocity: 1.0
+      }
+    );
     
     // Setup shot controller
     this.shotController = new ShotController(
@@ -320,22 +335,11 @@ export class Game {
       
       // Check for out of bounds
       this.checkBallOutOfBounds();
-      
-      // Check if ball has stopped (if in ROLLING state)
-      if (this.gameStateManager.isState(GameState.ROLLING)) {
-        const velocity = this.ball.getVelocity();
-        const speed = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
-        
-        // If ball is very slow, consider it stopped
-        if (speed < 0.5) {
-          // Mark ball as not moving
-          this.ball.setMoving(false);
-          
-          // Transition to IDLE state directly without emitting an event
-          // This avoids the recursive loop that was happening before
-          this.gameStateManager.setState(GameState.IDLE);
-        }
-      }
+    }
+    
+    // Update collision handling
+    if (this.collisionHandler) {
+      this.collisionHandler.update();
     }
     
     // Update camera to follow ball
@@ -351,6 +355,9 @@ export class Game {
     // Handle state-specific updates
     this.handleStateSpecificUpdates(deltaTime);
     
+    // Handle idle actions
+    this.handleIdleActions();
+    
     // Request next frame
     if (this.isRunning) {
       requestAnimationFrame(this.update.bind(this));
@@ -362,24 +369,39 @@ export class Game {
    */
   private checkBallOutOfBounds(): void {
     if (!this.ball) return;
+    
+    // Skip check if we're already resetting
+    if (this.isResettingBall) return;
 
     const position = this.ball.getPosition();
     const bounds = 50; // Arena bounds
     
-    if (
+    const isOutOfBounds = 
       position.x < -bounds || 
       position.x > bounds || 
       position.z < -bounds || 
       position.z > bounds ||
-      position.y < -10 // Fell through the floor
-    ) {
+      position.y < -10; // Fell through the floor
+    
+    if (isOutOfBounds) {
       console.log('Ball out of bounds, resetting position');
       
-      // Reset ball position to center
-      this.ball.setPosition(new THREE.Vector3(0, 1, 0));
+      // Set the resetting flag to prevent duplicate resets
+      this.isResettingBall = true;
       
-      // Set game state to idle
-      this.gameStateManager.setState(GameState.IDLE);
+      // Reset ball position and stop all movement
+      this.ball.reset(); // Uses the ball's internal reset which also zeros velocity
+      
+      // Set game state to idle - only if not already in IDLE
+      if (!this.gameStateManager.isState(GameState.IDLE)) {
+        this.gameStateManager.setState(GameState.IDLE);
+      }
+      
+      // Clear the resetting flag after a longer delay
+      // This ensures we don't have overlapping reset operations
+      setTimeout(() => {
+        this.isResettingBall = false;
+      }, 500); // Increased from 100ms to 500ms for more robust debouncing
     }
   }
 
@@ -403,20 +425,39 @@ export class Game {
   }
 
   /**
-   * Fire a shot with the given parameters (for external/debug use)
+   * Handle actions for the IDLE state
+   */
+  private handleIdleActions(): void {
+    // Only process idle actions when actually in IDLE state
+    if (this.gameStateManager.getState() !== GameState.IDLE) return;
+    
+    // Check for space key to start a new shot
+    if (this.inputManager.isKeyDown('Space')) {
+      // Debounce to prevent multiple shots
+      if (!this.idleDebounceActive) {
+        // Start a new shot - this will transition to the SELECTING_TYPE state
+        this.shotController.startShot();
+        
+        // Add a simple debounce to prevent immediate re-activation
+        this.idleDebounceActive = true;
+        setTimeout(() => {
+          this.idleDebounceActive = false;
+        }, 300); // 300ms debounce
+      }
+    }
+  }
+
+  /**
+   * Fire a shot with a given power (for testing or AI)
    */
   public fireShot(power: number = 0.7): void {
-    if (this.shotController) {
-      // Set up shot parameters
-      const options = {
-        power: power,
-        shotType: ShotType.GROUNDER,
-        spinType: SpinType.NONE
-      };
-      
-      // Fire the shot
-      this.shotController.fireShot(options);
-    }
+    // This method is kept for backwards compatibility
+    // It's now simplified to just start the shot sequence
+    this.shotController.startShot();
+    
+    // TODO: In the future, we may want to implement a way to programmatically
+    // set shot parameters including power, but this requires changes to the
+    // ShotController interface.
   }
 
   /**
@@ -432,25 +473,47 @@ export class Game {
    * Clean up resources
    */
   private cleanup(): void {
-    // Dispose Three.js resources
-    this.renderer.dispose();
+    // Remove event listeners for window resize
+    window.removeEventListener('resize', this.onWindowResize.bind(this));
     
-    // Dispose managers
-    if (this.inputManager) {
-      this.inputManager.dispose();
+    // Remove event listeners for game events
+    if (this.boundHandlers) {
+      this.eventSystem.off(GameEvents.BALL_BOUNCE, this.boundHandlers.ballBounce);
+      this.eventSystem.off(GameEvents.BALL_STOPPED, this.boundHandlers.ballStopped);
+      this.boundHandlers = null;
     }
     
-    // Dispose shot controller
+    // Dispose collision handler
+    if (this.collisionHandler) {
+      this.collisionHandler.dispose();
+    }
+    
+    // Dispose of game entities
+    if (this.ball) {
+      this.ball.dispose();
+    }
+    
+    if (this.terrain) {
+      this.terrain.dispose();
+    }
+    
+    // Dispose of the shot controller
     if (this.shotController) {
       this.shotController.dispose();
     }
     
-    // Remove event listeners
-    window.removeEventListener('resize', this.onWindowResize.bind(this));
-    if (this.boundHandlers) {
-      this.eventSystem.off(GameEvents.BALL_BOUNCE, this.boundHandlers.ballBounce);
-      this.eventSystem.off(GameEvents.BALL_STOPPED, this.boundHandlers.ballStopped);
+    // Dispose of the physics world
+    if (this.physicsWorld) {
+      this.physicsWorld.destroy();
     }
+    
+    // Dispose of renderers
+    if (this.renderer) {
+      this.renderer.dispose();
+    }
+    
+    // Remove global reference
+    (window as any).game = null;
     
     console.log('Game resources cleaned up');
   }

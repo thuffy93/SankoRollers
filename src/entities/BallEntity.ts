@@ -206,9 +206,13 @@ export class BallEntity {
     const speed = velocity.length();
     
     // Check if below threshold and not in air
-    if (speed < this.minVelocityThreshold) {
+    if (speed < this.minVelocityThreshold && this.isGrounded()) {
       // Ball has stopped
+      console.log(`Ball stopped with final speed: ${speed.toFixed(3)}`);
       this.isMoving = false;
+      
+      // Force zero velocity to ensure it's really stopped
+      this.zeroVelocity();
       
       // Emit ball stopped event through the event system
       this.eventSystem.emit(GameEvents.BALL_STOPPED, this.getPosition());
@@ -296,5 +300,23 @@ export class BallEntity {
         }
       }
     }
+  }
+  
+  /**
+   * Check if ball is on the ground or in air
+   */
+  public isGrounded(): boolean {
+    // Simple implementation - check if y velocity is very small and position is near ground
+    const position = this.getPosition();
+    const velocity = this.getVelocity();
+    return Math.abs(velocity.y) < 0.1 && position.y <= this.radius + 0.1;
+  }
+  
+  /**
+   * Zero out all velocity
+   */
+  public zeroVelocity(): void {
+    this.rigidBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.rigidBody.setAngvel({ x: 0, y: 0, z: 0 }, true);
   }
 } 
