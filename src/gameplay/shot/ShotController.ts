@@ -10,6 +10,7 @@ import { ShotTypeController } from './ShotTypeController';
 import { AimingController } from './AimingController';
 import { ShotPanelController } from './ShotPanelController';
 import { PowerController } from './PowerController';
+import { SpinController } from './SpinController';
 import { BoostController } from './BoostController';
 import { ShotPhysics } from './ShotPhysics';
 
@@ -21,7 +22,7 @@ import { ShotPhysics } from './ShotPhysics';
  * 0. Shot Type Selection (ShotTypeController)
  * 1. Direction Selection (AimingController)
  * 2. Shot Panel / Guide Selection (ShotPanelController)
- * 3. Power and Spin (PowerController)
+ * 3. Power and Spin (PowerController, SpinController)
  * 4. Shot Execution and Boost (BoostController)
  * 
  * It also manages the shared parameter store and coordinates the overall shot flow.
@@ -44,6 +45,7 @@ export class ShotController {
   private aimingController: AimingController;
   private shotPanelController: ShotPanelController;
   private powerController: PowerController;
+  private spinController: SpinController;
   private boostController: BoostController;
   
   // Physics handler
@@ -74,6 +76,7 @@ export class ShotController {
     this.aimingController = new AimingController(scene, this.parameterManager);
     this.shotPanelController = new ShotPanelController(this.parameterManager, this.trajectorySystem);
     this.powerController = new PowerController(this.parameterManager);
+    this.spinController = new SpinController(this.parameterManager);
     this.boostController = new BoostController(ballBody);
     
     // Initialize physics handler
@@ -260,27 +263,113 @@ export class ShotController {
    * Show visual effects for super shot
    */
   private showSuperShotEffect(): void {
-    console.log('Showing super shot visual effect');
+    console.log('Showing enhanced super shot visual effect');
     
-    // Example: Flash the screen with a special color
+    // Create screen flash effect
     const flashElement = document.createElement('div');
     flashElement.style.position = 'fixed';
     flashElement.style.top = '0';
     flashElement.style.left = '0';
     flashElement.style.width = '100%';
     flashElement.style.height = '100%';
-    flashElement.style.backgroundColor = 'rgba(255, 150, 0, 0.3)';
+    flashElement.style.backgroundColor = 'rgba(255, 105, 180, 0.3)'; // Hot pink
     flashElement.style.zIndex = '999';
     flashElement.style.pointerEvents = 'none';
+    flashElement.style.transition = 'opacity 0.2s ease-out';
     
     document.body.appendChild(flashElement);
     
+    // Create star burst effect container
+    const burstContainer = document.createElement('div');
+    burstContainer.style.position = 'fixed';
+    burstContainer.style.top = '50%';
+    burstContainer.style.left = '50%';
+    burstContainer.style.transform = 'translate(-50%, -50%)';
+    burstContainer.style.width = '100%';
+    burstContainer.style.height = '100%';
+    burstContainer.style.zIndex = '998';
+    burstContainer.style.pointerEvents = 'none';
+    
+    document.body.appendChild(burstContainer);
+    
+    // Create multiple star elements
+    const starCount = 8;
+    const stars: HTMLElement[] = [];
+    
+    for (let i = 0; i < starCount; i++) {
+      const star = document.createElement('div');
+      star.style.position = 'absolute';
+      star.style.width = '20px';
+      star.style.height = '20px';
+      star.style.backgroundColor = '#ff69b4';
+      star.style.borderRadius = '50%';
+      star.style.boxShadow = '0 0 10px #ff69b4, 0 0 20px #ff69b4';
+      star.style.top = '50%';
+      star.style.left = '50%';
+      star.style.transform = 'translate(-50%, -50%)';
+      star.style.opacity = '1';
+      star.style.transition = 'all 0.5s ease-out';
+      
+      burstContainer.appendChild(star);
+      stars.push(star);
+    }
+    
+    // Apply camera shake effect
+    const scene = this.scene;
+    const originalPosition = scene.position.clone();
+    let shakeTime = 0;
+    const shakeDuration = 0.3; // seconds
+    const shakeIntensity = 0.1;
+    
+    // Animation function for camera shake
+    const shakeCamera = (time: number) => {
+      shakeTime += 1/60; // Assuming 60fps
+      
+      if (shakeTime < shakeDuration) {
+        // Apply random offset to camera
+        scene.position.x = originalPosition.x + (Math.random() * 2 - 1) * shakeIntensity;
+        scene.position.y = originalPosition.y + (Math.random() * 2 - 1) * shakeIntensity;
+        
+        // Continue shaking
+        requestAnimationFrame(shakeCamera);
+      } else {
+        // Reset camera position
+        scene.position.copy(originalPosition);
+      }
+    };
+    
+    // Start camera shake
+    requestAnimationFrame(shakeCamera);
+    
+    // Animate stars outward
+    setTimeout(() => {
+      stars.forEach((star, index) => {
+        const angle = (index / starCount) * Math.PI * 2;
+        const distance = 100;
+        
+        star.style.transform = `translate(
+          calc(-50% + ${Math.cos(angle) * distance}px), 
+          calc(-50% + ${Math.sin(angle) * distance}px)
+        )`;
+        star.style.opacity = '0';
+      });
+    }, 10);
+    
     // Remove the flash after a short delay
     setTimeout(() => {
-      if (flashElement.parentNode) {
-        flashElement.parentNode.removeChild(flashElement);
-      }
-    }, 200);
+      flashElement.style.opacity = '0';
+      setTimeout(() => {
+        if (flashElement.parentNode) {
+          flashElement.parentNode.removeChild(flashElement);
+        }
+        if (burstContainer.parentNode) {
+          burstContainer.parentNode.removeChild(burstContainer);
+        }
+      }, 500);
+    }, 300);
+    
+    // Emit the Super Shot event for other systems to respond to
+    this.eventSystem.emit(GameEvents.SUPER_SHOT_READY, { executed: true });
   }
   
   /**
@@ -352,14 +441,15 @@ export class ShotController {
    * Clean up resources
    */
   public dispose(): void {
-    // Clean up sub-controllers
+    // Dispose of all controllers
     this.shotTypeController.dispose();
     this.aimingController.dispose();
     this.shotPanelController.dispose();
     this.powerController.dispose();
+    this.spinController.dispose();
     this.boostController.dispose();
     
-    // Dispose the trajectory system
+    // Dispose of trajectory system
     this.trajectorySystem.dispose();
     
     // Remove event listeners

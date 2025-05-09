@@ -1,5 +1,6 @@
 import { EventSystem, GameEvents } from './EventSystem';
 import { GameStateManager, GameState } from './GameStateManager';
+import { SpinType } from '../gameplay/shot/ShotTypes';
 
 /**
  * InputManager - Handles user input and maps it to game events
@@ -152,6 +153,29 @@ export class InputManager {
           // In CHARGING state, Space starts power oscillation
           if (keyCode === 'Space') {
             this.eventSystem.emit(GameEvents.SHOT_POWER_CHANGE, 0);
+          } 
+          // Handle spin type selection with Shift + arrow keys
+          else if (this.isKeyDown('ShiftLeft') || this.isKeyDown('ShiftRight')) {
+            // Shift + Left/Right/Up/Down for spin types
+            if (keyCode === 'ArrowLeft') {
+              this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { type: SpinType.LEFT });
+              console.log('Spin direction input: LEFT');
+            } else if (keyCode === 'ArrowRight') {
+              this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { type: SpinType.RIGHT });
+              console.log('Spin direction input: RIGHT');
+            } else if (keyCode === 'ArrowUp') {
+              this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { type: SpinType.TOP });
+              console.log('Spin direction input: TOP');
+            } else if (keyCode === 'ArrowDown') {
+              this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { type: SpinType.BACK });
+              console.log('Spin direction input: BACK');
+            }
+          }
+          // Regular arrow keys (without shift) for aiming
+          else if (keyCode === 'ArrowLeft') {
+            this.eventSystem.emit(GameEvents.SHOT_AIM, -0.8);
+          } else if (keyCode === 'ArrowRight') {
+            this.eventSystem.emit(GameEvents.SHOT_AIM, 0.8);
           }
           break;
           
@@ -178,6 +202,12 @@ export class InputManager {
         // In CHARGING state, releasing Space executes the shot
         this.eventSystem.emit(GameEvents.SHOT_EXECUTE);
       }
+      
+      // Reset to NO SPIN when Shift is released in CHARGING state
+      if ((keyCode === 'ShiftLeft' || keyCode === 'ShiftRight') && 
+          currentState === GameState.CHARGING) {
+        this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { type: SpinType.NONE });
+      }
     }
   }
 
@@ -203,14 +233,28 @@ export class InputManager {
     const currentState = this.gameStateManager.getState();
     
     // Only handle continuous aim inputs in appropriate states
-    if (currentState === GameState.AIMING || currentState === GameState.CHARGING) {
+    if (currentState === GameState.AIMING || 
+        (currentState === GameState.CHARGING && 
+         !this.isKeyDown('ShiftLeft') && !this.isKeyDown('ShiftRight'))) {
       // Handle continuous press for arrow keys - for more precise aiming
+      // Only when shift is not pressed in CHARGING state
       if (this.isKeyDown('ArrowLeft')) {
         this.eventSystem.emit(GameEvents.SHOT_AIM, -1.0);
       }
       
       if (this.isKeyDown('ArrowRight')) {
         this.eventSystem.emit(GameEvents.SHOT_AIM, 1.0);
+      }
+    }
+    
+    // Handle continuous spin intensity adjustment in CHARGING state
+    if (currentState === GameState.CHARGING && 
+        (this.isKeyDown('ShiftLeft') || this.isKeyDown('ShiftRight'))) {
+      // Adjust spin intensity if arrows are held down
+      if (this.isKeyDown('ArrowUp')) {
+        this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { intensity: 0.01 });
+      } else if (this.isKeyDown('ArrowDown')) {
+        this.eventSystem.emit(GameEvents.SHOT_SPIN_CHANGE, { intensity: -0.01 });
       }
     }
     
@@ -238,7 +282,7 @@ export class InputManager {
     // Prevent default behavior for game control keys
     const gameControlKeys = [
       'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-      'Space', 'Enter', 'Escape'
+      'Space', 'Enter', 'Escape', 'ShiftLeft', 'ShiftRight'
     ];
     
     return gameControlKeys.includes(keyCode);
