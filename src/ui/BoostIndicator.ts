@@ -8,9 +8,11 @@ export class BoostIndicator {
   private boostElement: HTMLElement | null = null;
   private timerElement: HTMLElement | null = null;
   private progressBar: HTMLElement | null = null;
+  private messageElement: HTMLElement | null = null;
   private timeRemaining: number = 0;
   private maxTime: number = 0.5; // 500ms window for boost
   private isVisible: boolean = false;
+  private isLate: boolean = false;
   
   /**
    * Constructor
@@ -48,6 +50,9 @@ export class BoostIndicator {
     boostMessage.style.fontWeight = 'bold';
     boostMessage.style.color = '#ffcc00';
     boostMessage.style.marginBottom = '10px';
+    
+    // Store reference to message element
+    this.messageElement = boostMessage;
     
     // Add key hint
     const keyHint = document.createElement('div');
@@ -107,6 +112,9 @@ export class BoostIndicator {
   public show(position: { x: number, y: number } | null = null, duration: number = 0.5): void {
     if (!this.boostElement) return;
     
+    // Reset late flag
+    this.isLate = false;
+    
     // Store the max time
     this.maxTime = duration;
     this.timeRemaining = duration;
@@ -122,11 +130,24 @@ export class BoostIndicator {
       this.boostElement.style.transform = 'translate(-50%, -50%)';
     }
     
-    // Reset timer bar
+    // Reset message style
+    if (this.messageElement) {
+      this.messageElement.innerText = 'BOOST!';
+      this.messageElement.style.color = '#ffcc00';
+    }
+    
+    // Reset progress bar style 
     if (this.progressBar) {
+      this.progressBar.style.backgroundColor = '#ffcc00';
       this.progressBar.style.width = '100%';
       // Set the transition duration to match the timer duration
       this.progressBar.style.transition = `width ${duration}s linear`;
+    }
+    
+    // Reset container style
+    if (this.boostElement) {
+      this.boostElement.style.border = '2px solid #ffcc00';
+      this.boostElement.style.boxShadow = '0 0 20px rgba(255, 204, 0, 0.5)';
     }
     
     // Make visible
@@ -143,6 +164,61 @@ export class BoostIndicator {
   }
   
   /**
+   * Set the indicator to "late" status
+   * Changes the visual appearance to indicate the perfect timing window has passed
+   * but the indicator is still visible
+   */
+  public setLateStatus(): void {
+    if (!this.boostElement || !this.isVisible || this.isLate) return;
+    
+    // Mark as late
+    this.isLate = true;
+    
+    // Change progress bar color to orange/red
+    if (this.progressBar) {
+      this.progressBar.style.backgroundColor = '#ff4500'; // Orange-red
+    }
+    
+    // Change border color
+    if (this.boostElement) {
+      this.boostElement.style.border = '2px solid #ff4500';
+      this.boostElement.style.boxShadow = '0 0 20px rgba(255, 69, 0, 0.5)';
+    }
+    
+    // Change message text and color
+    if (this.messageElement) {
+      this.messageElement.innerText = 'LATE BOOST';
+      this.messageElement.style.color = '#ff4500';
+    }
+    
+    // Add a brief flash effect
+    const flashElement = document.createElement('div');
+    flashElement.style.position = 'absolute';
+    flashElement.style.top = '0';
+    flashElement.style.left = '0';
+    flashElement.style.width = '100%';
+    flashElement.style.height = '100%';
+    flashElement.style.backgroundColor = 'rgba(255, 69, 0, 0.3)';
+    flashElement.style.borderRadius = '8px';
+    flashElement.style.zIndex = '-1';
+    flashElement.style.transition = 'opacity 0.5s ease-out';
+    
+    if (this.boostElement) {
+      this.boostElement.appendChild(flashElement);
+    }
+    
+    // Fade out the flash
+    setTimeout(() => {
+      flashElement.style.opacity = '0';
+      setTimeout(() => {
+        if (flashElement.parentNode) {
+          flashElement.parentNode.removeChild(flashElement);
+        }
+      }, 500);
+    }, 200);
+  }
+  
+  /**
    * Hide the boost indicator
    */
   public hide(): void {
@@ -150,6 +226,7 @@ export class BoostIndicator {
     
     this.boostElement.style.display = 'none';
     this.isVisible = false;
+    this.isLate = false;
   }
   
   /**
@@ -210,5 +287,6 @@ export class BoostIndicator {
     
     this.boostElement = null;
     this.progressBar = null;
+    this.messageElement = null;
   }
 } 

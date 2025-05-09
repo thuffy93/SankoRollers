@@ -82,10 +82,28 @@ export class ShotParameterManager {
   // Calculated shot parameters
   
   /**
-   * Calculate actual shot power value based on power percentage
+   * Calculate actual shot power value based on power percentage and shot type
    */
   getActualShotPower(): number {
-    return this.minPower + (this.maxPower - this.minPower) * this._power;
+    // Base power calculation
+    let basePower = this.minPower + (this.maxPower - this.minPower) * this._power;
+    
+    // Apply shot type specific scaling
+    if (this._shotType === ShotType.FLY) {
+      // Fly shots have less horizontal power but more vertical power
+      // Reduce horizontal power by 15% compared to grounders
+      basePower *= 0.85;
+    } else {
+      // Ground shots maintain full horizontal power
+      // No modification needed
+    }
+    
+    // Apply super shot bonus (5% extra power when at max)
+    if (this.isSuperShot) {
+      basePower *= 1.05;
+    }
+    
+    return basePower;
   }
   
   /**
@@ -95,7 +113,9 @@ export class ShotParameterManager {
     if (this._shotType === ShotType.GROUNDER) {
       return this.groundShotHeight;
     } else {
-      return this.flyShotHeight;
+      // For fly shots, height scales with power
+      const heightScale = this.isSuperShot ? 1.2 : 1.0; // 20% height bonus for super shots
+      return this.flyShotHeight * heightScale;
     }
   }
   
