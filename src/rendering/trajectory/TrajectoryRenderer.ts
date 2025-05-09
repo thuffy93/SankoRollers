@@ -96,35 +96,103 @@ export class TrajectoryRenderer {
     // Update geometry with new points
     this.updateGeometry(points);
     
-    // Get the line material
-    const material = this.trajectoryLine.material as THREE.LineBasicMaterial;
-    
-    // Change color based on power and shot type
+    // Change appearance based on shot type
     if (shotType === ShotType.GROUNDER) {
-      if (power < 0.33) {
-        material.color.set(0x00ff00); // Green for low power
-      } else if (power < 0.66) {
-        material.color.set(0xffff00); // Yellow for medium power
-      } else {
-        material.color.set(0xff0000); // Red for high power
+      // For grounder shots, use a basic material with different colors
+      this.updateGrounderLineAppearance(power);
+    } else {
+      // For fly shots, use a dashed material with different colors
+      this.updateFlyLineAppearance(power);
+    }
+  }
+  
+  /**
+   * Update ground shot line appearance
+   */
+  private updateGrounderLineAppearance(power: number): void {
+    // Ensure we're using a LineBasicMaterial
+    if (!(this.trajectoryLine.material instanceof THREE.LineBasicMaterial) ||
+        this.trajectoryLine.material instanceof THREE.LineDashedMaterial) {
+      // Create a new basic material
+      const basicMaterial = new THREE.LineBasicMaterial({
+        color: 0xffff00,
+        opacity: this.lineOpacity,
+        transparent: true,
+        linewidth: 3
+      });
+      
+      // Replace the material
+      if (this.trajectoryLine.material) {
+        (this.trajectoryLine.material as THREE.Material).dispose();
       }
-    } else { // FLY shot
-      if (power < 0.33) {
-        material.color.set(0x00ffff); // Cyan for low power
-      } else if (power < 0.66) {
-        material.color.set(0xff00ff); // Magenta for medium power
-      } else {
-        material.color.set(0xff8000); // Orange for high power
-      }
+      this.trajectoryLine.material = basicMaterial;
     }
     
-    // Adjust line thickness and opacity based on power
+    // Get the line material (we know it's a LineBasicMaterial now)
+    const material = this.trajectoryLine.material as THREE.LineBasicMaterial;
+    
+    // GROUNDER SHOTS: Green → Yellow → Red
+    if (power < 0.33) {
+      material.color.set(0x00ff00); // Green for low power
+    } else if (power < 0.66) {
+      material.color.set(0xffff00); // Yellow for medium power
+    } else {
+      material.color.set(0xff0000); // Red for high power
+    }
+    
+    // Adjust line opacity based on power
     if (power >= 0.9) {
-      // Make line thicker and more vibrant for high-power shots
-      material.opacity = 1.0;
+      material.opacity = 1.0; // More vibrant for high-power shots
     } else {
       material.opacity = this.lineOpacity;
     }
+  }
+  
+  /**
+   * Update fly shot line appearance
+   */
+  private updateFlyLineAppearance(power: number): void {
+    // Determine the color based on power
+    let color: number;
+    
+    // FLY SHOTS: Blue → Purple → Orange
+    if (power < 0.33) {
+      color = 0x00aaff; // Light blue for low power
+    } else if (power < 0.66) {
+      color = 0xaa00ff; // Purple for medium power
+    } else {
+      color = 0xff8800; // Orange for high power
+    }
+    
+    // Determine the opacity based on power
+    const opacity = power >= 0.9 ? 1.0 : this.lineOpacity;
+    
+    // Check if we need to create a new dashed material
+    if (!(this.trajectoryLine.material instanceof THREE.LineDashedMaterial)) {
+      // Create a new dashed material 
+      const dashedMaterial = new THREE.LineDashedMaterial({
+        color: color,
+        dashSize: 0.3,
+        gapSize: 0.2,
+        opacity: opacity,
+        transparent: true,
+        linewidth: 3
+      });
+      
+      // Replace the material
+      if (this.trajectoryLine.material) {
+        (this.trajectoryLine.material as THREE.Material).dispose();
+      }
+      this.trajectoryLine.material = dashedMaterial;
+    } else {
+      // Update the existing dashed material
+      const material = this.trajectoryLine.material as THREE.LineDashedMaterial;
+      material.color.set(color);
+      material.opacity = opacity;
+    }
+    
+    // Compute line distances for dashed material to work
+    this.trajectoryLine.computeLineDistances();
   }
   
   /**
@@ -299,7 +367,15 @@ export class TrajectoryRenderer {
    * Limit the visible points to a specific distance from start
    */
   public limitPoints(points: THREE.Vector3[], maxDistance: number): THREE.Vector3[] {
-    if (points.length === 0) return [];
+    if (!points || points.length === 0) {
+      console.warn("limitPoints called with empty points array");
+      return [];
+    }
+    
+    if (maxDistance <= 0) {
+      console.warn(`Invalid maxDistance: ${maxDistance}, must be > 0`);
+      return [points[0].clone()]; // Return just the first point
+    }
     
     // Get the starting point
     const startPoint = points[0].clone();
@@ -340,6 +416,13 @@ export class TrajectoryRenderer {
       
       // Stop if we've reached the max distance
       if (totalDistance >= maxDistance) break;
+    }
+    
+    // Ensure we have at least two points for a visible line
+    if (limitedPoints.length < 2 && points.length >= 2) {
+      // If we have less than 2 points but original array had 2+,
+      // add the second point to make a visible line
+      limitedPoints.push(points[1].clone());
     }
     
     return limitedPoints;

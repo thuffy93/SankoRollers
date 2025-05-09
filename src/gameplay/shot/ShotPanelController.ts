@@ -110,10 +110,18 @@ export class ShotPanelController {
    * Update trajectory visualization based on current guide length
    */
   private updateTrajectoryVisualization(): void {
+    // Only update trajectory if we're in the right states
+    const currentState = this.gameStateManager.getState();
+    if (currentState !== GameState.SHOT_PANEL && 
+        currentState !== GameState.CHARGING) {
+      return;
+    }
+    
     // Get guide distance based on current guide length
     const guideDistance = this.parameterManager.currentGuideDistance;
     
     // Apply guide length limits to the trajectory visualization
+    // This is now safer with the improved error handling in TrajectorySystem
     this.trajectorySystem.limitTrajectoryLength(guideDistance);
   }
   

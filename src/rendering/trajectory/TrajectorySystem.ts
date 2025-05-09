@@ -20,13 +20,19 @@ export class TrajectorySystem {
   private trajectorySimulator: TrajectorySimulator;
   private trajectoryRenderer: TrajectoryRenderer;
   
+  // Logging control
+  private debugMode: boolean = false;
+  private lastLogTime: number = 0;
+  private logThrottleTime: number = 500; // ms between logs
+  
   /**
    * Constructor
    */
-  constructor(scene: THREE.Scene, physicsWorld: RAPIER.World) {
+  constructor(scene: THREE.Scene, physicsWorld: RAPIER.World, debug: boolean = false) {
     this.scene = scene;
     this.physicsWorld = physicsWorld;
     this.eventSystem = EventSystem.getInstance();
+    this.debugMode = debug;
     
     // Initialize components
     this.trajectorySimulator = new TrajectorySimulator(physicsWorld);
@@ -34,6 +40,19 @@ export class TrajectorySystem {
     
     // Set up event listeners
     this.setupEventListeners();
+  }
+  
+  /**
+   * Helper method to log only in debug mode and with throttling
+   */
+  private debugLog(message: string): void {
+    if (!this.debugMode) return;
+    
+    const now = Date.now();
+    if (now - this.lastLogTime < this.logThrottleTime) return;
+    
+    console.log(message);
+    this.lastLogTime = now;
   }
   
   /**
@@ -84,16 +103,36 @@ export class TrajectorySystem {
   
   /**
    * Limit trajectory length to a specific distance
-   * Used for shot guide visualization in Phase 2
+   * Used for shot guide visualization in Phase 2 and CHARGING phase
    */
   public limitTrajectoryLength(maxDistance: number): void {
+    this.debugLog(`Limiting trajectory to maxDistance: ${maxDistance}`);
+    
+    // Check if trajectory line exists
+    if (!this.trajectoryRenderer.trajectoryLine) {
+      this.debugLog("Cannot limit trajectory: trajectory line not yet initialized");
+      return;
+    }
+    
     // Get current trajectory from renderer
-    const geometry = this.trajectoryRenderer.trajectoryLine?.geometry as THREE.BufferGeometry;
-    if (!geometry) return;
+    const geometry = this.trajectoryRenderer.trajectoryLine.geometry as THREE.BufferGeometry;
+    if (!geometry) {
+      this.debugLog("Cannot limit trajectory: geometry is undefined");
+      return;
+    }
     
     // Convert geometry to points
     const positionAttribute = geometry.getAttribute('position');
-    if (!positionAttribute) return;
+    if (!positionAttribute) {
+      this.debugLog("Cannot limit trajectory: position attribute is missing");
+      return;
+    }
+    
+    // Check if there are points to limit
+    if (positionAttribute.count === 0) {
+      this.debugLog("Cannot limit trajectory: no points found");
+      return;
+    }
     
     const points: THREE.Vector3[] = [];
     for (let i = 0; i < positionAttribute.count; i++) {
@@ -104,8 +143,12 @@ export class TrajectorySystem {
       ));
     }
     
+    this.debugLog(`Limiting trajectory from ${points.length} points`);
+    
     // Calculate limited points
     const limitedPoints = this.trajectoryRenderer.limitPoints(points, maxDistance);
+    
+    this.debugLog(`Trajectory limited to ${limitedPoints.length} points`);
     
     // Update renderer with limited points
     this.trajectoryRenderer.updateGeometry(limitedPoints);
@@ -135,5 +178,12 @@ export class TrajectorySystem {
     
     // Dispose components
     this.trajectoryRenderer.dispose();
+  }
+  
+  /**
+   * Enable or disable debug logging
+   */
+  public setDebugMode(enabled: boolean): void {
+    this.debugMode = enabled;
   }
 } 

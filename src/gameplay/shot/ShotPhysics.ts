@@ -26,19 +26,54 @@ export class ShotPhysics {
    * @returns True if shot was successfully executed
    */
   public executeShot(): boolean {
-    // Hide aiming arrow handled by AimingController
-    
     // Calculate shot vector
     const shotVector = this.parameterManager.calculateShotVector();
     
-    // Check if this is a "super shot" (95%+ power)
-    const isSuperShot = this.parameterManager.isSuperShot;
+    // CRITICAL DEBUG OUTPUT
+    const ballPos = this.ballBody.translation();
+    console.log("PRE-SHOT BALL STATE:", {
+      position: { x: ballPos.x.toFixed(2), y: ballPos.y.toFixed(2), z: ballPos.z.toFixed(2) },
+      sleeping: this.ballBody.isSleeping(),
+      linvel: this.ballBody.linvel(),
+      angvel: this.ballBody.angvel()
+    });
     
-    // Apply impulse to ball
-    this.ballBody.applyImpulse(
-      { x: shotVector.x, y: shotVector.y, z: shotVector.z }, 
-      true
-    );
+    // Ensure vector has meaningful magnitude
+    if (shotVector.length() < 0.1) {
+      console.error("Shot vector too small:", shotVector);
+      return false;
+    }
+    
+    // FORCE WAKE THE BALL - Multiple methods to ensure it wakes up
+    this.ballBody.wakeUp();
+    
+    // Method 1: Set zero linear velocity to reset any "at rest" state
+    this.ballBody.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    
+    // Method 2: Apply slightly stronger impulse (1.2x force)
+    const impulseVector = {
+      x: shotVector.x * 1.2,
+      y: Math.max(shotVector.y, 0.3), // Ensure some upward component
+      z: shotVector.z * 1.2
+    };
+    
+    console.log("APPLYING IMPULSE:", {
+      x: impulseVector.x.toFixed(2),
+      y: impulseVector.y.toFixed(2),
+      z: impulseVector.z.toFixed(2)
+    });
+    
+    this.ballBody.applyImpulse(impulseVector, true);
+    
+    // Check if ball is still sleeping (should never happen after above steps)
+    if (this.ballBody.isSleeping()) {
+      console.log("Ball still sleeping after impulse! Forcing direct velocity");
+      this.ballBody.setLinvel({
+        x: shotVector.x * 0.3,
+        y: Math.max(shotVector.y, 0.2),
+        z: shotVector.z * 0.3
+      }, true);
+    }
     
     // Apply spin based on spin type
     if (this.parameterManager.spinType !== SpinType.NONE) {
@@ -46,11 +81,24 @@ export class ShotPhysics {
     }
     
     // For super shots, apply additional stability (reduced random factors)
-    if (isSuperShot) {
+    if (this.parameterManager.isSuperShot) {
       this.applySuperShotEffects();
     }
     
+    // Schedule debug output after a short delay to see if the ball actually moved
+    setTimeout(() => {
+      const postBallPos = this.ballBody.translation();
+      const postVel = this.ballBody.linvel();
+      console.log("POST-SHOT BALL STATE (after 50ms):", {
+        position: { x: postBallPos.x.toFixed(2), y: postBallPos.y.toFixed(2), z: postBallPos.z.toFixed(2) },
+        sleeping: this.ballBody.isSleeping(),
+        linvel: { x: postVel.x.toFixed(2), y: postVel.y.toFixed(2), z: postVel.z.toFixed(2) },
+        speed: Math.sqrt(postVel.x * postVel.x + postVel.y * postVel.y + postVel.z * postVel.z).toFixed(2)
+      });
+    }, 50);
+    
     console.log(`Shot executed: Power=${this.parameterManager.getActualShotPower().toFixed(2)}, Angle=${this.parameterManager.angle.toFixed(2)}, Type=${this.parameterManager.shotType}, Spin=${this.parameterManager.spinType}`);
+    console.log(`Applied shot vector: x=${shotVector.x.toFixed(2)}, y=${shotVector.y.toFixed(2)}, z=${shotVector.z.toFixed(2)}`);
     
     return true;
   }

@@ -30,13 +30,13 @@ export class ShotParameterManager {
   private _guideLength: GuideLength = GuideLength.SHORT;
   
   // Parameter constraints
-  private shortGuideLength: number = 5;
-  private longGuideLength: number = 15;
+  private shortGuideLength: number = 10;
+  private longGuideLength: number = 30;
   private maxPower: number = 30;
   private minPower: number = 5;
   private superShotThreshold: number = 0.95;
   private groundShotHeight: number = 0.1;
-  private flyShotHeight: number = 6.0;
+  private flyShotHeight: number = 8.0;
   
   // Event system for parameter change notifications
   private eventSystem: EventSystem;

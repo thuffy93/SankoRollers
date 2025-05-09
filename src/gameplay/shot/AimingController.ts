@@ -97,15 +97,13 @@ export class AimingController {
    * Handle aiming input
    */
   private handleAim(direction: number): void {
+    // Only process aim inputs in valid states
     // Allow aiming in both AIMING and CHARGING states
     if (!(this.gameStateManager.isState(GameState.AIMING) || 
           this.gameStateManager.isState(GameState.CHARGING))) {
-      // If in IDLE state, transition to AIMING
-      if (this.gameStateManager.isState(GameState.IDLE)) {
-        this.gameStateManager.setState(GameState.AIMING);
-      } else {
-        return;
-      }
+      // We should never try to transition directly from IDLE to AIMING
+      // The proper flow is IDLE -> SELECTING_TYPE -> AIMING
+      return;
     }
     
     // Update angle in parameter manager
@@ -132,6 +130,9 @@ export class AimingController {
     
     // Make arrow visible
     this.aimArrow.visible = true;
+    
+    // Emit event to ensure trajectory is updated
+    this.eventSystem.emit(GameEvents.SHOT_PARAMS_CHANGED);
     
     console.log('Started aiming mode');
   }

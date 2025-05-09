@@ -128,8 +128,9 @@ export class PowerController {
     // Stop power oscillation
     this.powerOscillating = false;
     
-    // Change to ROLLING state (the actual shot physics will be applied by the ShotController)
-    this.gameStateManager.setState(GameState.ROLLING);
+    // NOTE: We intentionally do NOT change the game state here.
+    // The ShotController will handle the state change after physics are applied
+    // to avoid race conditions between the controllers.
   }
   
   /**

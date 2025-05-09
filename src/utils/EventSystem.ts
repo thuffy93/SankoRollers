@@ -122,12 +122,13 @@ export class EventSystem {
 export const GameEvents = {
   // Input events
   SHOT_AIM: 'shot:aim',                  // Player is aiming shot direction (Phase 1)
+  SHOT_TYPE_TOGGLE: 'shot:type_toggle',  // Player toggles between grounder and fly shot
+  SHOT_TYPE_CONFIRM: 'shot:type_confirm', // Player confirms shot type and moves to aiming (Phase 0→1)
   SHOT_DIRECTION_CONFIRM: 'shot:dir_confirm', // Player confirms direction and moves to guide selection (Phase 1→2)
   SHOT_GUIDE_TOGGLE: 'shot:guide_toggle', // Player toggles between short and long guide (Phase 2)
   SHOT_GUIDE_CONFIRM: 'shot:guide_confirm', // Player confirms guide selection and moves to power/spin (Phase 2→3)
   SHOT_POWER_CHANGE: 'shot:power',       // Player is changing shot power (Phase 3)
   SHOT_SPIN_CHANGE: 'shot:spin',         // Player is changing shot spin (Phase 3)
-  SHOT_TYPE_TOGGLE: 'shot:type_toggle',  // Player toggles between grounder and fly shot (Phase 1-3)
   SHOT_EXECUTE: 'shot:execute',          // Player executes the shot (Phase 3→4)
   SHOT_CANCEL: 'shot:cancel',            // Player cancels the shot (Any Phase→IDLE)
   SHOT_BOOST: 'shot:boost',              // Player activates boost at bounce point (Phase 4)

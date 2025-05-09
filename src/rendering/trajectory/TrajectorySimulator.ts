@@ -188,18 +188,18 @@ export class TrajectorySimulator {
     
     // Calculate initial velocity based on shot type
     if (shotType === ShotType.GROUNDER) {
-      // GROUNDER shots have minimal upward component
+      // GROUNDER shots have minimal upward component and more forward momentum
       return new THREE.Vector3(
-        normalizedDir.x * force,
-        0.05 * force, // Minimal upward component
-        normalizedDir.z * force
+        normalizedDir.x * force * 1.2, // More horizontal force for grounder (20% more)
+        0.05 * force,                  // Minimal upward component
+        normalizedDir.z * force * 1.2  // More horizontal force for grounder (20% more)
       );
     } else {
-      // FLY shots have significant upward component
+      // FLY shots have significant upward component but less forward momentum
       return new THREE.Vector3(
-        normalizedDir.x * force,
-        0.4 * force, // Higher upward component
-        normalizedDir.z * force
+        normalizedDir.x * force * 0.8, // Less horizontal force for fly shots (80% of normal)
+        0.6 * force,                   // Higher upward component (increased from 0.4 to 0.6)
+        normalizedDir.z * force * 0.8  // Less horizontal force for fly shots (80% of normal)
       );
     }
   }
